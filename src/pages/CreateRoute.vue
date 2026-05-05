@@ -147,10 +147,10 @@ const isFragile = ref(false)
 const selectedCertificates = ref([])
 const certificatesList = [
   'GDP',
-  'Cold Chain',
+  'IATA',
+  'ISO 9001',
   'ISO 13485',
-  'GMP',
-  'Validated Transport',
+  'ISO 28000',
 ]
 
 const goToCanvas = () => {
