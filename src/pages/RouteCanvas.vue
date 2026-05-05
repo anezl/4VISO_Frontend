@@ -1,589 +1,386 @@
 <template>
   <div class="canvas">
+    <!-- TOOLBAR -->
     <div class="toolbar">
-      <div class="title-section">
-        <h2>Route Builder</h2>
-        <p class="subtitle">Drag intermediary nodes to reorder or move them up/down. Double-click to edit.</p>
+      <div class="toolbar-left">
+        <button class="btn-back" @click="$router.push('/create')">← Back</button>
       </div>
-      <button class="btn-primary" @click="addNode">
-        <span class="icon">+</span> Add Node
-      </button>
+      <div class="toolbar-center">
+        <h2 class="toolbar-title">Route Builder</h2>
+        <p class="subtitle">Double-click a node to edit · Drag intermediary nodes to reorder</p>
+      </div>
+      <div class="toolbar-actions">
+        <button class="btn-remove" :class="{ active: removingMode }" @click="toggleRemoveMode">
+          <span>−</span> {{ removingMode ? 'Cancel' : 'Remove Node' }}
+        </button>
+        <button class="btn-primary" @click="addNode" :disabled="removingMode">
+          <span>+</span> Add Node
+        </button>
+      </div>
     </div>
 
+    <!-- ROUTE BANNER -->
+    <div class="route-banner">
+      <div class="route-endpoint">
+        <span class="ep-tag origin-tag">ORIGIN</span>
+        <span class="ep-name">{{ originNode?.details?.location || '—' }}</span>
+        <span class="ep-company">{{ originNode?.details?.company || '' }}</span>
+      </div>
+      <div class="banner-middle">
+        <div class="banner-line"></div>
+        <div class="banner-stops">{{ intermediaryNodes.length }} stop{{ intermediaryNodes.length !== 1 ? 's' : '' }}</div>
+        <div class="banner-line"></div>
+        <span class="banner-arrow">→</span>
+      </div>
+      <div class="route-endpoint">
+        <span class="ep-tag dest-tag">DESTINATION</span>
+        <span class="ep-name">{{ destinationNode?.details?.location || '—' }}</span>
+        <span class="ep-company">{{ destinationNode?.details?.company || '' }}</span>
+      </div>
+    </div>
+
+    <!-- LANE -->
     <div class="lane-container">
-      <div 
-        class="lane" 
-        @drop="dropOnLane($event)" 
-        @dragover.prevent
-      >
-        <!-- SVG for diagonal dynamic connection lines -->
+      <div class="lane" @drop="dropOnLane($event)" @dragover.prevent>
         <svg class="lane-svg">
-          <line 
-            v-for="(node, i) in nodes.slice(0, nodes.length - 1)" 
-            :key="'line-'+node.id"
-            :x1="115 + i * 230" 
-            :y1="nodes[i].offsetY || 0" 
-            :x2="115 + (i + 1) * 230" 
-            :y2="nodes[i+1].offsetY || 0" 
-            stroke="#cbd5e0" 
-            stroke-width="3" 
-          />
+          <line v-for="(node, i) in nodes.slice(0, nodes.length - 1)" :key="'l'+node.id"
+            :x1="115 + i * 230" :y1="nodes[i].offsetY || 0"
+            :x2="115 + (i+1) * 230" :y2="nodes[i+1].offsetY || 0"
+            stroke="#cbd5e0" stroke-width="3" />
         </svg>
 
-        <div
-          v-for="(node, index) in nodes"
-          :key="node.id"
+        <div v-for="(node, index) in nodes" :key="node.id"
           class="node-wrapper"
-          :class="{ 
-            'is-dragged': draggedIndex === index, 
-            'drag-over': dragOverIndex === index 
-          }"
-          :style="{ transform: `translateY(${node.offsetY || 0}px)` }"
-          :draggable="node.type === 'intermediary'"
-          @dragstart="dragStart(index)"
-          @dragenter.prevent="dragEnter(index)"
-          @dragleave="dragLeave(index)"
-          @dragend="dragEnd"
+          :class="{ 'is-dragged': draggedIndex===index, 'drag-over': dragOverIndex===index, 'remove-mode': removingMode && node.type==='intermediary' }"
+          :style="{ transform: `translateY(${node.offsetY||0}px)` }"
+          :draggable="node.type==='intermediary' && !removingMode"
+          @dragstart="dragStart(index)" @dragenter.prevent="dragEnter(index)"
+          @dragleave="dragLeave(index)" @dragend="dragEnd"
+          @click="removingMode && node.type==='intermediary' ? deleteNode(index) : null"
         >
-          <!-- Main Hexagon -->
-          <div class="hex-shadow">
-            <div class="hex primary-hex" @dblclick="openModal(index)">
-              <span>{{ node.label }}</span>
-
-              <!-- Delete Button (Inner, Top-Right) -->
-              <button 
-                v-if="node.type === 'intermediary'" 
-                class="inner-delete-btn" 
-                @click.stop="deleteNode(index)"
-                title="Eliminar nodo"
-              >
-                -
-              </button>
+          <div class="hex-shadow" :class="{ 'remove-target': removingMode && node.type==='intermediary' }">
+            <div class="hex primary-hex" @dblclick="!removingMode && openModal(index)">
+              <div v-if="removingMode && node.type==='intermediary'" class="remove-x">×</div>
+              <template v-else>
+                <div class="hex-content" v-if="node.type==='origin' || node.type==='destination'">
+                  <span class="hc-loc">{{ node.details.location || (node.type==='origin' ? 'Origin' : 'Destination') }}</span>
+                  <span class="hc-company" v-if="node.details.company">{{ node.details.company }}</span>
+                </div>
+                <div class="hex-content" v-else>
+                  <span class="hc-icon">{{ transportIcon(node.details.transportType) }}</span>
+                  <span class="hc-loc">{{ node.details.location || 'Node' }}</span>
+                  <span class="hc-company" v-if="node.details.company">{{ node.details.company }}</span>
+                </div>
+              </template>
             </div>
           </div>
 
-          <!-- Connecting vertical line to backup -->
           <div v-if="node.backup !== null" class="backup-connector"></div>
-
-          <!-- Backup Hexagon -->
           <div v-if="node.backup !== null" class="hex-shadow">
             <div class="hex backup-hex" @dblclick="openModal(index)">
               <span>{{ node.backup }}</span>
-              <button 
-                class="btn-icon swap-btn" 
-                @click.stop="swapBackup(index)" 
-                title="Swap with primary"
-              >
-                ↑↓
-              </button>
+              <button class="swap-btn" @click.stop="swapBackup(index)">↑↓</button>
             </div>
           </div>
 
-          <!-- Controls under the node -->
-          <div class="node-controls" v-if="node.type === 'intermediary'">
-            <button 
-              v-if="node.backup === null" 
-              class="btn-text add-backup-btn" 
-              @click="addBackup(index)"
-            >
-              + Add Backup
-            </button>
-            <button 
-              v-else 
-              class="btn-text remove-backup-btn" 
-              @click="removeBackup(index)"
-            >
-              - Remove Backup
-            </button>
+          <div class="node-controls" v-if="node.type==='intermediary' && !removingMode">
+            <button v-if="node.backup===null" class="btn-text add-backup-btn" @click="addBackup(index)">+ Add Backup</button>
+            <button v-else class="btn-text remove-backup-btn" @click="removeBackup(index)">− Remove Backup</button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Node Edit Modal -->
+    <!-- MODAL -->
     <div class="modal-overlay" v-if="editingNodeIndex !== null" @click.self="closeModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Edit {{ editingFormData.type === 'origin' ? 'Origin Node' : (editingFormData.type === 'destination' ? 'Destination Node' : 'Intermediary Node') }}</h3>
-          <button class="close-btn" @click="closeModal">×</button>
+      <div class="modal-duo" v-if="editingFormData">
+
+        <!-- LEFT: transparent hex preview panel -->
+        <div class="preview-panel">
+          <p class="preview-lbl">Preview</p>
+          <div class="hex-preview-wrap">
+            <div class="hex-lg" :class="editingFormData.type">
+              <template v-if="editingFormData.type==='origin' || editingFormData.type==='destination'">
+                <span class="hlg-loc">{{ editingFormData.details.location || (editingFormData.type==='origin' ? 'Origin' : 'Destination') }}</span>
+                <span class="hlg-co" v-if="editingFormData.details.company">{{ editingFormData.details.company }}</span>
+              </template>
+              <template v-else>
+                <span class="hlg-icon">{{ transportIcon(editingFormData.details.transportType) }}</span>
+                <span class="hlg-loc">{{ editingFormData.details.location || 'Location' }}</span>
+                <span class="hlg-co" v-if="editingFormData.details.company">{{ editingFormData.details.company }}</span>
+              </template>
+            </div>
+          </div>
+          <span class="preview-type-badge">{{ nodeTypeLabel(editingFormData.type) }}</span>
         </div>
 
-        <div class="modal-body">
-          <div class="form-group">
-            <label>Node Name (Label)</label>
-            <input v-model="editingFormData.label" class="modern-input" />
+        <!-- RIGHT: white form card -->
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>Edit {{ nodeTypeLabel(editingFormData.type) }}</h3>
+            <button class="close-btn" @click="closeModal">×</button>
           </div>
 
-          <!-- Origin / Destination Fields -->
-          <template v-if="editingFormData.type === 'origin' || editingFormData.type === 'destination'">
-            <div class="form-group">
-              <label>Company Name</label>
-              <input v-model="editingFormData.details.company" class="modern-input" placeholder="e.g. PharmaCorp Inc." />
-            </div>
-            <div class="form-group">
-              <label>{{ editingFormData.type === 'origin' ? 'Origin Location' : 'Destination Location' }}</label>
-              <input v-model="editingFormData.details.location" class="modern-input" placeholder="City, Country" />
-            </div>
-          </template>
+          <div class="form-panel">
+            <template v-if="editingFormData.type==='origin' || editingFormData.type==='destination'">
+              <div class="form-group">
+                <label>{{ editingFormData.type==='origin' ? 'Origin Location' : 'Destination Location' }}</label>
+                <input v-model="editingFormData.details.location" class="modern-input" placeholder="City, Country" />
+              </div>
+              <div class="form-group">
+                <label>{{ editingFormData.type==='origin' ? 'Sending Company' : 'Receiving Company' }}</label>
+                <input v-model="editingFormData.details.company" class="modern-input" placeholder="e.g. PharmaCorp Inc." />
+              </div>
+            </template>
 
-          <!-- Intermediary Fields -->
-          <template v-if="editingFormData.type === 'intermediary'">
-            <div class="form-group">
-              <label>Location</label>
-              <input v-model="editingFormData.details.location" class="modern-input" placeholder="City, Airport, etc." />
-            </div>
-            
-            <div class="form-group">
-              <label>Transport Type</label>
-              <select v-model="editingFormData.details.transportType" class="modern-input">
-                <option value="road">Road</option>
-                <option value="air">Air</option>
-                <option value="sea">Sea</option>
-                <option value="rail">Rail</option>
-              </select>
-            </div>
+            <template v-if="editingFormData.type==='intermediary'">
+              <div class="form-group">
+                <label>Current Location</label>
+                <input v-model="editingFormData.details.location" class="modern-input" placeholder="City, Airport, Port…" />
+              </div>
+              <div class="form-group">
+                <label>Transport / Facility Type</label>
+                <div class="transport-btns">
+                  <button v-for="t in transportTypes" :key="t.value" type="button"
+                    class="t-btn" :class="{ active: editingFormData.details.transportType===t.value }"
+                    @click="editingFormData.details.transportType = t.value">
+                    <span>{{ t.icon }}</span><span>{{ t.label }}</span>
+                  </button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Company <span class="lbl-note">(certified carriers)</span></label>
+                <input v-model="editingFormData.details.company" class="modern-input" placeholder="e.g. DHL, FedEx…" />
+                <p class="field-hint">Certified companies matching your certificates will appear here in a future update.</p>
+              </div>
+            </template>
 
-            <div class="form-group checkbox-group">
-              <label class="cert-checkbox">
-                <input type="checkbox" v-model="editingFormData.details.isWarehouse" />
-                <span class="cert-label">Is this a Warehouse / Storage facility?</span>
-              </label>
+            <div class="form-group" v-if="editingFormData.backup !== null">
+              <label>Backup Node Label</label>
+              <input v-model="editingFormData.backup" class="modern-input" placeholder="Backup name" />
             </div>
+          </div>
 
-            <div class="form-group" v-if="editingFormData.details.isWarehouse">
-              <label>Warehouse Company Name</label>
-              <input v-model="editingFormData.details.company" class="modern-input" placeholder="e.g. DHL Storage" />
-            </div>
-          </template>
-
-          <!-- Backup Field -->
-          <div class="form-group" v-if="editingFormData.backup !== null">
-            <label>Backup Node Label</label>
-            <input v-model="editingFormData.backup" class="modern-input" placeholder="Backup name" />
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="closeModal">Cancel</button>
+            <button class="btn-primary" @click="saveNodeDetails">Save Details</button>
           </div>
         </div>
 
-        <div class="modal-actions">
-          <button class="btn-cancel" @click="closeModal">Cancel</button>
-          <button class="btn-primary" @click="saveNodeDetails">Save Details</button>
-        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const nodes = ref([
-  { 
-    id: 1, 
-    label: 'Origin', 
-    type: 'origin', 
-    details: { company: '', location: '' }, 
-    backup: null,
-    offsetY: 0
-  },
-  { 
-    id: 2, 
-    label: 'Destination', 
-    type: 'destination', 
-    details: { company: '', location: '' }, 
-    backup: null,
-    offsetY: 0
-  }
+  { id: 1, type: 'origin',      details: { company: '', location: '' }, backup: null, offsetY: 0 },
+  { id: 2, type: 'destination', details: { company: '', location: '' }, backup: null, offsetY: 0 }
 ])
 
-const draggedIndex = ref(null)
-const dragOverIndex = ref(null)
+const originNode      = computed(() => nodes.value.find(n => n.type === 'origin'))
+const destinationNode = computed(() => nodes.value.find(n => n.type === 'destination'))
+const intermediaryNodes = computed(() => nodes.value.filter(n => n.type === 'intermediary'))
 
-/* MODAL & EDIT LOGIC */
+const transportTypes = [
+  { value: 'road',      label: 'Road',      icon: '🚛' },
+  { value: 'air',       label: 'Air',       icon: '✈️' },
+  { value: 'sea',       label: 'Sea',       icon: '🚢' },
+  { value: 'rail',      label: 'Rail',      icon: '🚆' },
+  { value: 'warehouse', label: 'Warehouse', icon: '🏭' },
+]
+
+const transportIcon = (type) => {
+  const t = transportTypes.find(x => x.value === type)
+  return t ? t.icon : '🚛'
+}
+
+const nodeTypeLabel = (type) => {
+  if (type === 'origin') return 'Origin Node'
+  if (type === 'destination') return 'Destination Node'
+  return 'Intermediary Node'
+}
+
+// ── Remove Mode ──
+const removingMode = ref(false)
+const toggleRemoveMode = () => { removingMode.value = !removingMode.value }
+
+// ── Modal ──
 const editingNodeIndex = ref(null)
-const editingFormData = ref(null)
+const editingFormData  = ref(null)
 
 const openModal = (index) => {
   editingNodeIndex.value = index
-  editingFormData.value = JSON.parse(JSON.stringify(nodes.value[index]))
+  editingFormData.value  = JSON.parse(JSON.stringify(nodes.value[index]))
 }
-
-const closeModal = () => {
-  editingNodeIndex.value = null
-  editingFormData.value = null
-}
-
+const closeModal = () => { editingNodeIndex.value = null; editingFormData.value = null }
 const saveNodeDetails = () => {
   if (editingNodeIndex.value !== null && editingFormData.value) {
-    if (!editingFormData.value.label.trim()) {
-      editingFormData.value.label = editingFormData.value.type === 'origin' ? 'Origin' : 
-        (editingFormData.value.type === 'destination' ? 'Destination' : 'Node')
-    }
     nodes.value[editingNodeIndex.value] = editingFormData.value
   }
   closeModal()
 }
 
+// ── Nodes ──
 const addNode = () => {
-  const newNode = {
-    id: Date.now(),
-    label: 'New Node',
-    type: 'intermediary',
-    details: { company: '', location: '', transportType: 'road', isWarehouse: false },
-    backup: null,
-    offsetY: 0
-  }
-  
-  if (nodes.value.length > 0) {
-    // Insert before destination
-    nodes.value.splice(nodes.value.length - 1, 0, newNode)
-  } else {
-    nodes.value.push(newNode)
-  }
+  const n = { id: Date.now(), type: 'intermediary', details: { company: '', location: '', transportType: 'road', isWarehouse: false }, backup: null, offsetY: 0 }
+  nodes.value.splice(nodes.value.length - 1, 0, n)
 }
-
 const deleteNode = (index) => {
-  if (nodes.value[index].type === 'intermediary') {
-    nodes.value.splice(index, 1)
-  }
+  if (nodes.value[index].type === 'intermediary') nodes.value.splice(index, 1)
+  removingMode.value = false
+}
+const addBackup    = (i) => { nodes.value[i].backup = 'Backup Node' }
+const removeBackup = (i) => { nodes.value[i].backup = null }
+const swapBackup   = (i) => {
+  const n = nodes.value[i]; const t = n.label; n.label = n.backup; n.backup = t
 }
 
-/* BACKUP LOGIC */
-const addBackup = (index) => {
-  if (nodes.value[index].backup === null) {
-    nodes.value[index].backup = 'Backup Node'
-  }
-}
-
-const removeBackup = (index) => {
-  nodes.value[index].backup = null
-}
-
-const swapBackup = (index) => {
-  const n = nodes.value[index]
-  if (n.backup === null) return
-  const temp = n.label
-  n.label = n.backup
-  n.backup = temp
-}
-
-/* DRAG & DROP LOGIC (WITH 2D MOVEMENT) */
-const dragStart = (index) => {
-  if (nodes.value[index].type !== 'intermediary') return
-  draggedIndex.value = index
-}
-
-const dragEnter = (index) => {
-  if (draggedIndex.value !== index && nodes.value[index].type === 'intermediary') {
-    dragOverIndex.value = index
-  }
-}
-
-const dragLeave = (index) => {
-  if (dragOverIndex.value === index) {
-    dragOverIndex.value = null
-  }
-}
-
-const dragEnd = () => {
-  draggedIndex.value = null
-  dragOverIndex.value = null
-}
-
+// ── Drag ──
+const draggedIndex = ref(null)
+const dragOverIndex = ref(null)
+const dragStart  = (i) => { if (nodes.value[i].type !== 'intermediary') return; draggedIndex.value = i }
+const dragEnter  = (i) => { if (draggedIndex.value !== i && nodes.value[i].type === 'intermediary') dragOverIndex.value = i }
+const dragLeave  = (i) => { if (dragOverIndex.value === i) dragOverIndex.value = null }
+const dragEnd    = () => { draggedIndex.value = null; dragOverIndex.value = null }
 const dropOnLane = (e) => {
   if (draggedIndex.value === null) return
-  
   const item = nodes.value[draggedIndex.value]
-  
-  // 1. Calculate Vertical Offset
   const laneEl = document.querySelector('.lane')
-  const laneRect = laneEl.getBoundingClientRect()
-  const laneCenterY = laneRect.top + laneRect.height / 2
-  
-  item.offsetY = e.clientY - laneCenterY
-  
-  // 2. Calculate New Index (Horizontal Reorder)
-  const xInLane = e.clientX - laneRect.left
-  // Padding Left 40px + Half Hex (75px) = 115px center
-  // Node Width (150px) + Margin Right (80px) = 230px slot width
-  let newIndex = Math.round((xInLane - 115) / 230)
-  
-  // Remove item
+  const r = laneEl.getBoundingClientRect()
+  item.offsetY = e.clientY - (r.top + r.height / 2)
+  let ni = Math.round((e.clientX - r.left - 115) / 230)
   nodes.value.splice(draggedIndex.value, 1)
-  
-  // Clamp index to prevent replacing Origin (0) and Destination (length - 1 after removal)
-  if (newIndex < 1) newIndex = 1
-  if (newIndex > nodes.value.length - 1) newIndex = nodes.value.length - 1
-  
-  // Insert item at new position
-  nodes.value.splice(newIndex, 0, item)
-  
-  draggedIndex.value = null
-  dragOverIndex.value = null
+  if (ni < 1) ni = 1
+  if (ni > nodes.value.length - 1) ni = nodes.value.length - 1
+  nodes.value.splice(ni, 0, item)
+  draggedIndex.value = null; dragOverIndex.value = null
 }
 </script>
 
 <style scoped>
-.canvas {
-  display: flex;
-  flex-direction: column;
-  height: calc(100% - 40px); 
-  margin: 20px;
-  padding: 30px 40px;
-  background-color: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-  box-sizing: border-box;
-  overflow: hidden; 
-}
+/* ── Canvas shell ── */
+.canvas { display:flex; flex-direction:column; height:calc(100% - 40px); margin:20px; padding:24px 32px; background:#fff; border-radius:16px; box-shadow:0 4px 24px rgba(0,0,0,.06); box-sizing:border-box; overflow:hidden; }
 
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #edf2f7;
-  flex-shrink: 0;
-}
+/* ── Toolbar ── */
+.toolbar { display:flex; align-items:center; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid #edf2f7; flex-shrink:0; }
+.toolbar-left { flex:1; display:flex; align-items:center; }
+.toolbar-center { flex:1; display:flex; flex-direction:column; align-items:center; text-align:center; }
+.toolbar-actions { flex:1; display:flex; gap:10px; justify-content:flex-end; }
+.toolbar-title { margin:0 0 2px; font-size:20px; font-weight:500; color:#1f2937; }
+.subtitle { margin:0; font-size:12px; color:#9ca3af; }
 
-.title-section h2 {
-  margin: 0 0 8px 0;
-  color: #2d3748;
-  font-size: 24px;
-  font-weight: 600;
-}
+.btn-back { padding:8px 16px; border:1.5px solid #e5e7eb; border-radius:8px; background:#fff; color:#4b5563; font-size:13px; font-weight:500; cursor:pointer; transition:all .2s; white-space:nowrap; font-family:inherit; }
+.btn-back:hover { border-color:var(--primary); color:var(--primary); background:rgba(31,111,84,.04); }
 
-.subtitle {
-  margin: 0;
-  color: #718096;
-  font-size: 14px;
-}
+.btn-primary { display:flex; align-items:center; gap:6px; background:var(--primary); color:#fff; padding:9px 18px; border:none; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; transition:all .2s; font-family:inherit; }
+.btn-primary:hover:not(:disabled) { background:var(--primary-light); transform:translateY(-1px); }
+.btn-primary:disabled { opacity:.45; cursor:not-allowed; }
 
-.btn-primary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--primary);
-  color: white;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s, transform 0.1s;
-  box-shadow: 0 2px 4px rgba(31, 111, 84, 0.2);
-}
+.btn-remove { display:flex; align-items:center; gap:6px; padding:9px 18px; border:1.5px solid #e5e7eb; border-radius:8px; background:#fff; color:#6b7280; font-size:13px; font-weight:500; cursor:pointer; transition:all .2s; font-family:inherit; }
+.btn-remove:hover { border-color:#ef4444; color:#ef4444; background:#fef2f2; }
+.btn-remove.active { border-color:#ef4444; color:#ef4444; background:#fef2f2; }
 
-.btn-primary:hover { background: var(--primary-light); transform: translateY(-1px); }
-.btn-primary:active { transform: translateY(0); }
+/* ── Route Banner ── */
+.route-banner { display:flex; align-items:center; gap:0; background:linear-gradient(135deg,#f0fdf6 0%,#f9fafb 100%); border:1.5px solid #d1fae5; border-radius:14px; padding:18px 28px; margin-bottom:20px; flex-shrink:0; }
+.route-endpoint { display:flex; flex-direction:column; gap:3px; min-width:160px; }
+.ep-tag { font-size:10px; font-weight:500; letter-spacing:.08em; color:#9ca3af; text-transform:uppercase; }
+.origin-tag { color:var(--primary); }
+.dest-tag { color:#6366f1; }
+.ep-name { font-size:22px; font-weight:500; color:#1f2937; line-height:1.2; }
+.ep-company { font-size:13px; color:#6b7280; }
+.banner-middle { display:flex; align-items:center; flex:1; gap:8px; padding:0 24px; }
+.banner-line { flex:1; height:1px; background:linear-gradient(90deg,#d1fae5,#c7d2fe); }
+.banner-stops { font-size:12px; color:#9ca3af; white-space:nowrap; }
+.banner-arrow { font-size:20px; color:#6366f1; }
 
-/* Lane Layout */
-.lane-container {
-  flex: 1; 
-  overflow-x: auto;
-  overflow-y: hidden;
-  position: relative;
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e0 #edf2f7;
-}
+/* ── Lane ── */
+.lane-container { flex:1; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; scrollbar-color:#cbd5e0 #edf2f7; }
+.lane { display:inline-flex; align-items:center; padding:40px; min-width:100%; min-height:100%; position:relative; }
+.lane-svg { position:absolute; top:50%; left:0; width:100%; height:0; overflow:visible; pointer-events:none; z-index:0; }
 
-.lane {
-  display: inline-flex; 
-  align-items: center; /* Centered vertically as requested */
-  padding: 40px 40px; /* Padding for start/end spacing */
-  min-width: 100%;
-  min-height: 100%;
-  position: relative;
-}
+/* ── Nodes ── */
+.node-wrapper { position:relative; display:flex; flex-direction:column; align-items:center; width:150px; margin-right:80px; transition:transform .15s, opacity .2s; z-index:1; }
+.node-wrapper:last-child { margin-right:0; }
+.node-wrapper.is-dragged { opacity:.35; transform:scale(.95) !important; }
+.node-wrapper.drag-over { transform:translateX(12px) !important; }
+.node-wrapper.remove-mode { cursor:pointer; }
 
-/* SVG Connection Lines */
-.lane-svg {
-  position: absolute;
-  top: 50%; /* Anchor to the middle */
-  left: 0;
-  width: 100%;
-  height: 0; /* Lets overflow render */
-  overflow: visible;
-  pointer-events: none; /* Let mouse events pass through to drag/drop */
-  z-index: 0;
-}
+.hex-shadow { filter:drop-shadow(0 4px 6px rgba(0,0,0,.1)); cursor:pointer; transition:filter .2s; }
+.hex-shadow:hover { filter:drop-shadow(0 6px 14px rgba(0,0,0,.16)); }
+.remove-target { filter:drop-shadow(0 4px 14px rgba(239,68,68,.4)); animation:pulse-red .8s infinite alternate; }
+@keyframes pulse-red { from { filter:drop-shadow(0 4px 8px rgba(239,68,68,.3)); } to { filter:drop-shadow(0 4px 20px rgba(239,68,68,.7)); } }
 
-.node-wrapper {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 150px;
-  margin-right: 80px; 
-  transition: transform 0.1s, opacity 0.2s; /* Faster transform for drag feel */
-  z-index: 1;
-}
-.node-wrapper:last-child { margin-right: 0; }
-.node-wrapper.is-dragged { opacity: 0.4; transform: scale(0.95); }
-.node-wrapper.drag-over { transform: translateX(15px); }
+.hex { width:200px; height:200px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:500; font-size:13px; text-align:center; padding:14px; box-sizing:border-box; clip-path:polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%); position:relative; }
+.primary-hex { background:linear-gradient(135deg,var(--primary) 0%,var(--primary-light) 100%); }
+.backup-hex  { background:linear-gradient(135deg,#718096 0%,#a0aec0 100%); }
 
-/* Hexagon Shapes */
-.hex-shadow {
-  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
-  z-index: 1;
-  transition: filter 0.2s;
-  cursor: grab;
-}
-.hex-shadow:active { cursor: grabbing; }
-.hex-shadow:hover { filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15)); }
+.hex-content { display:flex; flex-direction:column; align-items:center; gap:3px; width:100%; }
+.hc-icon { font-size:18px; }
+.hc-loc  { font-size:16px; font-weight:500; line-height:1.2; word-break:break-word; }
+.hc-company { font-size:13px; opacity:.85; line-height:1.2; word-break:break-word; }
 
-/* Non-draggable hex cursor */
-.node-wrapper[draggable="false"] .hex-shadow { cursor: pointer; }
+.remove-x { font-size:40px; font-weight:300; opacity:.9; }
 
-.hex {
-  width: 150px;
-  height: 150px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 500;
-  font-size: 16px;
-  text-align: center;
-  padding: 15px;
-  box-sizing: border-box;
-  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-  position: relative;
-}
+.backup-connector { width:2px; height:18px; background:#cbd5e0; margin:4px 0; }
+.swap-btn { position:absolute; bottom:14px; right:22px; width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,.2); color:#fff; border:none; font-size:13px; cursor:pointer; opacity:0; transition:opacity .2s; display:flex; align-items:center; justify-content:center; }
+.backup-hex:hover .swap-btn { opacity:1; }
 
-.primary-hex { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); }
-.backup-hex { background: linear-gradient(135deg, #718096 0%, #a0aec0 100%); }
+.node-controls { display:flex; flex-direction:column; align-items:center; gap:4px; margin-top:8px; }
+.btn-text { background:none; border:none; font-size:12px; font-weight:500; cursor:pointer; padding:4px 8px; border-radius:6px; transition:all .2s; font-family:inherit; }
+.add-backup-btn { color:var(--primary); }
+.add-backup-btn:hover { background:rgba(31,111,84,.1); }
+.remove-backup-btn { color:#a0aec0; }
+.remove-backup-btn:hover { background:rgba(160,174,192,.1); }
 
-/* Delete Button Inside Hexagon */
-.inner-delete-btn {
-  position: absolute;
-  top: 15px;
-  right: 25px; /* Stay within clip-path */
-  background: transparent;
-  color: rgba(255, 255, 255, 0.6);
-  border: none;
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-  transition: color 0.2s, transform 0.1s;
-  z-index: 2;
-}
+/* ── Modal ── */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:1000; backdrop-filter:blur(6px); }
 
-.inner-delete-btn:hover {
-  color: white;
-  transform: scale(1.2);
-}
+/* Two-panel duo layout */
+.modal-duo { display:flex; align-items:center; gap:72px; max-height:92vh; }
 
-.backup-connector {
-  width: 2px;
-  height: 20px;
-  background: #cbd5e0;
-  margin: 5px 0;
-}
+/* LEFT: transparent hex panel */
+.preview-panel { display:flex; flex-direction:column; align-items:center; gap:22px; flex-shrink:0; }
+.preview-lbl { font-size:11px; font-weight:500; color:rgba(255,255,255,.75); text-transform:uppercase; letter-spacing:.1em; margin:0; }
+.hex-preview-wrap { filter:drop-shadow(0 14px 44px rgba(31,111,84,.55)); }
+.hex-lg { width:380px; height:380px; clip-path:polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:32px; box-sizing:border-box; color:#fff; text-align:center; transition:all .35s; }
+.hex-lg.origin      { background:linear-gradient(135deg,var(--primary),var(--primary-light)); }
+.hex-lg.destination { background:linear-gradient(135deg,var(--primary),var(--primary-light)); }
+.hex-lg.intermediary{ background:linear-gradient(135deg,var(--primary),var(--primary-light)); }
+.hlg-icon { font-size:42px; }
+.hlg-loc  { font-size:22px; font-weight:500; line-height:1.2; word-break:break-word; }
+.hlg-co   { font-size:14px; opacity:.85; line-height:1.2; word-break:break-word; }
+.preview-type-badge { font-size:12px; font-weight:500; color:rgba(255,255,255,.95); background:rgba(31,111,84,.35); border:1px solid rgba(255,255,255,.35); border-radius:20px; padding:6px 18px; backdrop-filter:blur(6px); }
 
-/* Controls */
-.node-controls {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  margin-top: 10px;
-}
+/* RIGHT: white form card */
+.modal-card { background:#fff; width:440px; border-radius:20px; box-shadow:0 24px 56px rgba(0,0,0,.2); display:flex; flex-direction:column; max-height:88vh; flex-shrink:0; }
+.modal-header { padding:20px 24px; border-bottom:1px solid #f3f4f6; display:flex; justify-content:space-between; align-items:center; }
+.modal-header h3 { margin:0; font-size:17px; font-weight:500; color:#1f2937; }
+.close-btn { background:none; border:none; font-size:24px; color:#9ca3af; cursor:pointer; line-height:1; }
+.close-btn:hover { color:#374151; }
 
-.swap-btn {
-  position: absolute;
-  bottom: 15px;
-  right: 25px;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: none;
-  font-size: 14px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s, background 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.backup-hex:hover .swap-btn { opacity: 1; }
-.swap-btn:hover { background: rgba(255, 255, 255, 0.4); }
+/* Form panel */
+.form-panel { flex:1; overflow-y:auto; padding:22px 24px; display:flex; flex-direction:column; gap:18px; }
+.form-group { display:flex; flex-direction:column; gap:7px; }
+.form-group label { font-size:13px; font-weight:500; color:#374151; }
+.lbl-note { font-size:11px; font-weight:400; color:#9ca3af; }
+.modern-input { width:100%; padding:10px 14px; border:1.5px solid #e5e7eb; border-radius:8px; font-size:14px; color:#1f2937; box-sizing:border-box; font-family:inherit; transition:all .2s; background:#fafafa; }
+.modern-input:focus { outline:none; border-color:var(--primary); background:#fff; box-shadow:0 0 0 3px rgba(31,111,84,.1); }
+.field-hint { margin:4px 0 0; font-size:12px; color:#9ca3af; font-style:italic; }
 
-.btn-text {
-  background: none;
-  border: none;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-.add-backup-btn { color: var(--primary); }
-.add-backup-btn:hover { background: rgba(31, 111, 84, 0.1); }
-.remove-backup-btn { color: #a0aec0; }
-.remove-backup-btn:hover { background: rgba(160, 174, 192, 0.1); }
+/* Transport buttons */
+.transport-btns { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; }
+.t-btn { display:flex; flex-direction:column; align-items:center; gap:4px; padding:9px 4px; border:1.5px solid #e5e7eb; border-radius:10px; background:#fff; cursor:pointer; font-size:11px; color:#4b5563; font-family:inherit; transition:all .2s; }
+.t-btn:hover { border-color:var(--primary); color:var(--primary); background:rgba(31,111,84,.04); }
+.t-btn.active { border-color:var(--primary); background:rgba(31,111,84,.08); color:var(--primary); font-weight:500; }
+.t-btn span:first-child { font-size:19px; }
 
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(3px);
-}
-
-.modal-content {
-  background: white;
-  width: 100%; max-width: 500px;
-  border-radius: 16px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
-  display: flex; flex-direction: column;
-  max-height: 90vh;
-}
-
-.modal-header {
-  padding: 20px 24px;
-  border-bottom: 1px solid #edf2f7;
-  display: flex; justify-content: space-between; align-items: center;
-}
-.modal-header h3 { margin: 0; font-size: 18px; font-weight: 700; color: #2d3748; }
-.close-btn { background: none; border: none; font-size: 24px; color: #a0aec0; cursor: pointer; }
-.close-btn:hover { color: #4a5568; }
-
-.modal-body {
-  padding: 24px;
-  overflow-y: auto;
-  display: flex; flex-direction: column; gap: 20px;
-}
-
-.form-group { display: flex; flex-direction: column; gap: 8px; }
-.form-group label { font-size: 14px; font-weight: 600; color: #4a5568; }
-.modern-input {
-  width: 100%; padding: 12px 14px; border: 1px solid #cbd5e0;
-  border-radius: 8px; font-size: 14px; transition: all 0.2s; box-sizing: border-box;
-  font-family: inherit; color: #2d3748;
-}
-.modern-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(31, 111, 84, 0.1); }
-
-.checkbox-group { margin-top: 8px; }
-.cert-checkbox { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-.cert-checkbox input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); }
-.cert-label { font-size: 14px; color: #4a5568; }
-
-.modal-actions {
-  padding: 16px 24px; border-top: 1px solid #edf2f7;
-  display: flex; justify-content: flex-end; gap: 12px;
-}
-.btn-cancel {
-  padding: 10px 20px; background: white; border: 1px solid #cbd5e0;
-  color: #4a5568; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s;
-}
-.btn-cancel:hover { background: #f7fafc; color: #2d3748; }
+.modal-actions { padding:14px 24px; border-top:1px solid #f3f4f6; display:flex; justify-content:flex-end; gap:12px; flex-shrink:0; }
+.btn-cancel { padding:10px 20px; background:#fff; border:1.5px solid #e5e7eb; color:#6b7280; border-radius:8px; font-weight:500; font-size:13px; cursor:pointer; transition:all .2s; font-family:inherit; }
+.btn-cancel:hover { background:#f9fafb; color:#1f2937; }
 </style>
