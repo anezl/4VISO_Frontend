@@ -1,20 +1,54 @@
 <template>
   <div class="create-page">
-    <div class="form-container">
-      <div class="page-header">
-        <h1>Create New Route</h1>
-        <p>Define the product requirements and shipping constraints for your new supply chain lane.</p>
-      </div>
 
-      <div class="form-content">
+    <!-- LEFT INFO PANEL -->
+    <div class="info-panel">
+      <div class="info-content">
+        <div class="step-pill">Step 1 of 2</div>
+        <h2 class="panel-title">New Route Setup</h2>
+        <p class="panel-desc">
+          Define product requirements and shipping constraints before building your supply chain lane.
+        </p>
 
-        <!-- PRODUCT TYPE -->
-        <div class="form-section">
-          <div class="section-title">
-            <span class="section-icon">💊</span>
-            <span>Product Type</span>
+        <div class="timeline">
+          <div class="tl-item">
+            <div class="tl-icon">
+              <div class="tl-dot"></div>
+              <div class="tl-line"></div>
+            </div>
+            <div class="tl-text">
+              <strong>Requirements</strong>
+              <span>Product specs &amp; constraints</span>
+            </div>
           </div>
-          <div class="product-type-grid">
+          <div class="tl-item">
+            <div class="tl-icon">
+              <div class="tl-dot pending"></div>
+            </div>
+            <div class="tl-text">
+              <strong>Route Builder</strong>
+              <span>Visual lane configuration</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT FORM PANEL -->
+    <div class="form-panel">
+      <div class="form-scroll">
+      <div class="form-inner">
+
+        <!-- 01 PRODUCT TYPE -->
+        <section class="card">
+          <div class="card-header">
+            <span class="card-num">01</span>
+            <div>
+              <div class="card-title">Product Type</div>
+              <div class="card-hint">Select the category of goods being shipped</div>
+            </div>
+          </div>
+          <div class="product-grid">
             <label
               v-for="pt in productTypes"
               :key="pt.value"
@@ -22,105 +56,121 @@
               :class="{ active: productType === pt.value }"
             >
               <input type="radio" :value="pt.value" v-model="productType" />
-              <span class="product-icon">{{ pt.icon }}</span>
-              <span class="product-label">{{ pt.label }}</span>
+              <span class="p-icon">{{ pt.icon }}</span>
+              <span class="p-label">{{ pt.label }}</span>
             </label>
           </div>
-        </div>
+        </section>
 
-        <!-- PACKAGE SPECIFICATIONS -->
-        <div class="form-section">
-          <div class="section-title">
-            <span class="section-icon">📦</span>
-            <span>Package Specifications</span>
-          </div>
+        <!-- 02 + 03 side by side -->
+        <div class="two-panels">
 
-          <div class="pkg-dims-row">
-            <div class="form-group">
-              <label>Length <span class="unit">cm</span></label>
-              <input type="number" v-model="pkg.length" placeholder="0" class="modern-input" min="0" />
+          <section class="card">
+            <div class="card-header">
+              <span class="card-num">02</span>
+              <div>
+                <div class="card-title">Package Specs</div>
+                <div class="card-hint">Dimensions, weight &amp; quantity</div>
+              </div>
             </div>
-            <div class="dim-sep">×</div>
-            <div class="form-group">
-              <label>Width <span class="unit">cm</span></label>
-              <input type="number" v-model="pkg.width" placeholder="0" class="modern-input" min="0" />
-            </div>
-            <div class="dim-sep">×</div>
-            <div class="form-group">
-              <label>Height <span class="unit">cm</span></label>
-              <input type="number" v-model="pkg.height" placeholder="0" class="modern-input" min="0" />
-            </div>
-          </div>
 
-          <div class="pkg-meta-row">
-            <div class="form-group">
-              <label>Weight <span class="unit">kg</span></label>
-              <input type="number" v-model="pkg.weight" placeholder="0.0" class="modern-input" min="0" step="0.1" />
+            <div class="dims-row">
+              <div class="fg">
+                <label>Length <span class="unit">cm</span></label>
+                <input type="number" v-model="pkg.length" placeholder="0" class="inp" min="0" />
+              </div>
+              <span class="dim-sep">×</span>
+              <div class="fg">
+                <label>Width <span class="unit">cm</span></label>
+                <input type="number" v-model="pkg.width" placeholder="0" class="inp" min="0" />
+              </div>
+              <span class="dim-sep">×</span>
+              <div class="fg">
+                <label>Height <span class="unit">cm</span></label>
+                <input type="number" v-model="pkg.height" placeholder="0" class="inp" min="0" />
+              </div>
             </div>
-            <div class="form-group">
-              <label>Quantity <span class="unit">units</span></label>
-              <input type="number" v-model="pkg.quantity" placeholder="1" class="modern-input" min="1" />
-            </div>
-          </div>
-        </div>
 
-        <!-- TEMPERATURE + FRAGILE -->
-        <div class="form-section">
-          <div class="section-title">
-            <span class="section-icon">🌡️</span>
-            <span>Storage &amp; Handling</span>
-          </div>
+            <div class="inline-row">
+              <div class="fg">
+                <label>Weight <span class="unit">kg</span></label>
+                <input type="number" v-model="pkg.weight" placeholder="0.0" class="inp" min="0" step="0.1" />
+              </div>
+              <div class="fg">
+                <label>Quantity <span class="unit">units</span></label>
+                <input type="number" v-model="pkg.quantity" placeholder="1" class="inp" min="1" />
+              </div>
+            </div>
+          </section>
 
-          <div class="temp-fragile-row">
-            <div class="form-group">
-              <label>Min Temperature <span class="unit">°C</span></label>
-              <input type="number" v-model="tempMin" placeholder="-20" class="modern-input" />
+          <section class="card">
+            <div class="card-header">
+              <span class="card-num">03</span>
+              <div>
+                <div class="card-title">Storage &amp; Handling</div>
+                <div class="card-hint">Temperature range &amp; fragility</div>
+              </div>
             </div>
-            <div class="form-group">
-              <label>Max Temperature <span class="unit">°C</span></label>
-              <input type="number" v-model="tempMax" placeholder="8" class="modern-input" />
+
+            <div class="inline-row">
+              <div class="fg">
+                <label>Min Temp <span class="unit">°C</span></label>
+                <input type="number" v-model="tempMin" placeholder="-20" class="inp" />
+              </div>
+              <div class="fg">
+                <label>Max Temp <span class="unit">°C</span></label>
+                <input type="number" v-model="tempMax" placeholder="8" class="inp" />
+              </div>
             </div>
-            <div class="form-group fragile-group">
+
+            <div class="fg">
               <label>Fragile</label>
               <button
                 type="button"
-                class="fragile-toggle"
+                class="fragile-btn"
                 :class="{ on: isFragile }"
                 @click="isFragile = !isFragile"
               >
-                <span class="toggle-track">
-                  <span class="toggle-thumb"></span>
-                </span>
-                <span class="fragile-text">{{ isFragile ? '⚠️ Yes, handle with care' : 'No' }}</span>
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="fragile-text">{{ isFragile ? '⚠️ Yes, handle with care' : 'No special handling' }}</span>
               </button>
             </div>
-          </div>
+          </section>
+
         </div>
 
-        <!-- CERTIFICATES -->
-        <div class="form-section">
-          <div class="section-title">
-            <span class="section-icon">📋</span>
-            <span>Required Certificates</span>
+        <!-- 04 CERTIFICATES -->
+        <section class="card">
+          <div class="card-header">
+            <span class="card-num">04</span>
+            <div>
+              <div class="card-title">Required Certificates</div>
+              <div class="card-hint">Select all applicable compliance certificates</div>
+            </div>
           </div>
-          <div class="cert-grid">
-            <label v-for="cert in certificatesList" :key="cert" class="cert-checkbox">
+          <div class="cert-chips">
+            <label v-for="cert in certificatesList" :key="cert" class="cert-chip">
               <input type="checkbox" :value="cert" v-model="selectedCertificates" />
-              <span class="cert-label">{{ cert }}</span>
+              <span>{{ cert }}</span>
             </label>
           </div>
+        </section>
+
+      </div>
+      </div>
+
+      <!-- STICKY FOOTER -->
+      <div class="form-footer">
+        <div class="actions">
+          <button class="btn-ghost" @click="$router.push('/')">Cancel</button>
+          <button class="btn-primary" @click="goToCanvas">
+            Continue to Route Builder →
+          </button>
         </div>
-
       </div>
 
-      <!-- ACTIONS -->
-      <div class="form-actions">
-        <button class="btn-cancel" @click="$router.push('/lanes')">Cancel</button>
-        <button class="btn-primary" @click="goToCanvas">
-          Continue to Route Builder →
-        </button>
-      </div>
     </div>
+
   </div>
 </template>
 
@@ -145,13 +195,7 @@ const tempMax = ref('')
 const isFragile = ref(false)
 
 const selectedCertificates = ref([])
-const certificatesList = [
-  'GDP',
-  'IATA',
-  'ISO 9001',
-  'ISO 13485',
-  'ISO 28000',
-]
+const certificatesList = ['GDP', 'IATA', 'ISO 9001', 'ISO 13485', 'ISO 28000']
 
 const goToCanvas = () => {
   localStorage.setItem('routeData', JSON.stringify({
@@ -167,70 +211,217 @@ const goToCanvas = () => {
 </script>
 
 <style scoped>
+/* ── Page shell ── */
 .create-page {
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 40px 20px;
-  min-height: 100%;
+  height: 100%;
 }
 
-.form-container {
-  background: white;
-  width: 100%;
-  max-width: 720px;
-  border-radius: 20px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
-  padding: 44px;
-  box-sizing: border-box;
+/* ── Left info panel ── */
+.info-panel {
+  width: 272px;
+  flex-shrink: 0;
+  background: var(--primary);
+  position: relative;
+  overflow: hidden;
 }
 
-/* ── Header ── */
-.page-header {
-  margin-bottom: 36px;
-  text-align: center;
-}
-.page-header h1 {
-  font-size: 26px;
-  font-weight: 500;
-  color: #1f2937;
-  margin: 0 0 8px 0;
-}
-.page-header p {
-  color: #6b7280;
-  margin: 0;
-  font-size: 14px;
+.info-panel::before {
+  content: '';
+  position: absolute;
+  top: -90px;
+  right: -90px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  pointer-events: none;
 }
 
-/* ── Sections ── */
-.form-content {
+.info-panel::after {
+  content: '';
+  position: absolute;
+  bottom: -110px;
+  left: -60px;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  pointer-events: none;
+}
+
+.info-content {
+  padding: 52px 32px;
+  position: relative;
+  z-index: 1;
+}
+
+.step-pill {
+  display: inline-block;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.panel-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: white;
+  margin: 0 0 12px 0;
+  line-height: 1.25;
+}
+
+.panel-desc {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  line-height: 1.65;
+  margin: 0 0 44px 0;
+}
+
+/* Timeline */
+.timeline {
   display: flex;
   flex-direction: column;
-  gap: 32px;
 }
 
-.form-section {
+.tl-item {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.tl-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.tl-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: white;
+}
+
+.tl-dot.pending {
+  background: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+.tl-line {
+  width: 1.5px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 5px 0;
+}
+
+.tl-text strong {
+  display: block;
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.tl-text span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ── Right form panel ── */
+.form-panel {
+  flex: 1;
+  overflow: hidden;
+  background: var(--bg-color);
+  display: flex;
+  flex-direction: column;
+}
+
+.form-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 56px;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-inner {
+  width: 100%;
+  max-width: 920px;
+  margin: auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #f3f4f6;
-}
-.section-icon {
-  font-size: 16px;
+.form-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-color);
+  padding: 10px 56px;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.05);
 }
 
-/* ── Product Type cards ── */
-.product-type-grid {
+/* ── Cards ── */
+.card {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 24px 32px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.card-header {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.card-num {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--primary);
+  background: var(--primary-glow);
+  padding: 4px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.card-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ── Two-panel row ── */
+.two-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+/* ── Product type grid ── */
+.product-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
@@ -241,258 +432,284 @@ const goToCanvas = () => {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 18px 12px;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 12px;
+  padding: 22px 12px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 16px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
   user-select: none;
   text-align: center;
+  background: #fafbfc;
 }
+
 .product-card input[type="radio"] {
   display: none;
 }
+
 .product-card:hover {
   border-color: var(--primary);
-  background: rgba(31, 111, 84, 0.03);
+  background: white;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
+
 .product-card.active {
   border-color: var(--primary);
-  background: rgba(31, 111, 84, 0.07);
-  box-shadow: 0 0 0 3px rgba(31, 111, 84, 0.1);
+  background: white;
+  box-shadow: 0 0 0 3px var(--primary-glow);
 }
-.product-icon {
-  font-size: 28px;
+
+.p-icon {
+  font-size: 34px;
 }
-.product-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: #4b5563;
+
+.p-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
   line-height: 1.3;
 }
-.product-card.active .product-label {
+
+.product-card.active .p-label {
   color: var(--primary);
 }
 
-/* ── Package dims ── */
-.pkg-dims-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
-.pkg-dims-row .form-group {
-  flex: 1;
-}
-
-.dim-sep {
-  font-size: 18px;
-  color: #9ca3af;
-  padding-bottom: 12px;
-  flex-shrink: 0;
-}
-
-.pkg-meta-row {
-  display: flex;
-  gap: 16px;
-}
-.pkg-meta-row .form-group {
-  flex: 1;
-}
-
-/* ── Temperature + Fragile ── */
-.temp-fragile-row {
-  display: flex;
-  gap: 16px;
-  align-items: flex-end;
-  flex-wrap: wrap;
-}
-.temp-fragile-row .form-group {
-  flex: 1;
-  min-width: 120px;
-}
-
-/* ── Fragile toggle ── */
-.fragile-group {
-  flex: 1.5 !important;
-}
-.fragile-toggle {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 8px;
-  background: white;
-  cursor: pointer;
-  transition: all 0.2s;
-  width: 100%;
-  box-sizing: border-box;
-}
-.fragile-toggle.on {
-  border-color: #f59e0b;
-  background: #fffbeb;
-}
-.toggle-track {
-  width: 36px;
-  height: 20px;
-  background: #d1d5db;
-  border-radius: 999px;
-  position: relative;
-  transition: background 0.2s;
-  flex-shrink: 0;
-}
-.fragile-toggle.on .toggle-track {
-  background: #f59e0b;
-}
-.toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  background: white;
-  border-radius: 50%;
-  transition: transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-.fragile-toggle.on .toggle-thumb {
-  transform: translateX(16px);
-}
-.fragile-text {
-  font-size: 13px;
-  color: #4b5563;
-  font-weight: 500;
-}
-
 /* ── Shared form group ── */
-.form-group {
+.fg {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.form-group label {
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
+
+.fg label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
   display: flex;
   align-items: center;
   gap: 4px;
 }
+
 .unit {
   font-size: 11px;
   font-weight: 400;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 /* ── Inputs ── */
-.modern-input {
+.inp {
   width: 100%;
-  padding: 10px 14px;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 8px;
+  padding: 9px 12px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 10px;
   font-size: 14px;
-  color: #1f2937;
-  transition: all 0.2s;
+  color: var(--text-main);
+  transition: all var(--transition-fast);
   box-sizing: border-box;
   font-family: inherit;
-  background: #fafafa;
+  background: #fafbfc;
 }
-.modern-input:focus {
+
+.inp:focus {
   outline: none;
   border-color: var(--primary);
   background: white;
-  box-shadow: 0 0 0 3px rgba(31, 111, 84, 0.1);
+  box-shadow: 0 0 0 3px var(--primary-glow);
 }
-.modern-input::placeholder {
-  color: #d1d5db;
+
+.inp::placeholder {
+  color: #cbd5e1;
+}
+
+/* ── Package dims row ── */
+.dims-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.dims-row .fg {
+  flex: 1;
+}
+
+.dim-sep {
+  font-size: 15px;
+  color: var(--text-muted);
+  padding-bottom: 11px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.inline-row {
+  display: flex;
+  gap: 12px;
+}
+
+.inline-row .fg {
+  flex: 1;
+}
+
+/* ── Fragile toggle ── */
+.fragile-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 8px;
+  background: #fafbfc;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.fragile-btn.on {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.toggle-track {
+  width: 34px;
+  height: 19px;
+  background: #d1d5db;
+  border-radius: 999px;
+  position: relative;
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.fragile-btn.on .toggle-track {
+  background: #f59e0b;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  background: white;
+  border-radius: 50%;
+  transition: transform var(--transition-fast);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.fragile-btn.on .toggle-thumb {
+  transform: translateX(15px);
+}
+
+.fragile-text {
+  font-size: 13px;
+  color: var(--text-main);
+  font-weight: 500;
 }
 
 /* ── Certificates ── */
-.cert-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+.cert-chips {
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
-.cert-checkbox {
+
+.cert-chip {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 11px 14px;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 8px;
+  gap: 8px;
+  padding: 7px 16px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 999px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
   user-select: none;
+  background: #fafbfc;
 }
-.cert-checkbox:hover {
-  background: #f9fafb;
-  border-color: #d1d5db;
-}
-.cert-checkbox:has(input:checked) {
+
+.cert-chip:hover {
   border-color: var(--primary);
-  background: rgba(31, 111, 84, 0.05);
+  background: white;
 }
-.cert-checkbox input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+
+.cert-chip:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-glow);
+}
+
+.cert-chip input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
   accent-color: var(--primary);
   cursor: pointer;
   flex-shrink: 0;
 }
-.cert-label {
-  font-size: 13px;
-  color: #4b5563;
-  font-weight: 500;
+
+.cert-chip span {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 /* ── Actions ── */
-.form-actions {
+.actions {
+  max-width: 920px;
+  margin: 0 auto;
   display: flex;
   justify-content: flex-end;
-  gap: 16px;
-  margin-top: 40px;
-  padding-top: 24px;
-  border-top: 1px solid #f3f4f6;
+  gap: 12px;
 }
-.btn-cancel {
+
+.btn-ghost {
   padding: 11px 24px;
   background: white;
-  border: 1.5px solid #e5e7eb;
-  color: #6b7280;
+  border: 1.5px solid var(--border-color);
+  color: var(--text-muted);
   border-radius: 8px;
   font-weight: 500;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
   font-family: inherit;
 }
-.btn-cancel:hover {
-  background: #f9fafb;
-  color: #1f2937;
+
+.btn-ghost:hover {
+  background: #f8fafc;
+  color: var(--text-main);
+  border-color: #cbd5e1;
 }
+
 .btn-primary {
   padding: 11px 28px;
   background: var(--primary);
   color: white;
   border: none;
   border-radius: 8px;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(31, 111, 84, 0.25);
+  transition: all var(--transition-fast);
+  box-shadow: 0 4px 12px var(--primary-glow);
   font-family: inherit;
 }
+
 .btn-primary:hover {
   background: var(--primary-light);
   transform: translateY(-1px);
+  box-shadow: 0 8px 16px var(--primary-glow);
 }
 
-/* Responsive */
+/* ── Responsive ── */
+@media (max-width: 960px) {
+  .info-panel { display: none; }
+  .form-scroll { padding: 28px 24px 20px; }
+  .form-footer { padding: 14px 24px; }
+  .two-panels { grid-template-columns: 1fr; }
+  .form-inner { max-width: 100%; }
+}
+
 @media (max-width: 560px) {
-  .product-type-grid { grid-template-columns: repeat(2, 1fr); }
-  .pkg-dims-row { flex-direction: column; }
+  .product-grid { grid-template-columns: repeat(2, 1fr); }
+  .dims-row { flex-wrap: wrap; }
   .dim-sep { display: none; }
-  .temp-fragile-row { flex-direction: column; }
 }
 </style>
