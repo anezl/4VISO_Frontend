@@ -48,6 +48,42 @@
         </div>
       </div>
 
+      <!-- LANE RESULTS -->
+      <transition name="fade">
+        <div v-if="searchTriggered" class="results-section">
+          <div v-if="filteredLanes.length === 0" class="no-results-box">
+            <span class="no-results-icon">🔍</span>
+            <p class="no-results-msg">No secure lanes found for this route</p>
+            <button class="btn-create-lane" @click="createNewLane">+ Create new lane</button>
+          </div>
+          <div v-else class="lanes-grid">
+            <div v-for="lane in filteredLanes" :key="lane.id" class="lane-card">
+              <div class="lane-card-top">
+                <span class="lane-route-text">{{ lane.origin.city }} → {{ lane.destination.city }}</span>
+                <span class="lane-product-badge">{{ lane.productType }}</span>
+              </div>
+              <div class="lane-card-meta">
+                <div class="meta-item">
+                  <span class="meta-label">Certificates</span>
+                  <span class="meta-value certs">{{ lane.certificates.join(' · ') }}</span>
+                </div>
+                <div class="meta-row">
+                  <div class="meta-item">
+                    <span class="meta-label">Nodes</span>
+                    <span class="meta-value">{{ lane.nodes.length }}</span>
+                  </div>
+                  <div class="meta-item">
+                    <span class="meta-label">Created</span>
+                    <span class="meta-value">{{ lane.createdAt }}</span>
+                  </div>
+                </div>
+              </div>
+              <button class="open-lane-btn" @click="openLane(lane)">Open Lane →</button>
+            </div>
+          </div>
+        </div>
+      </transition>
+
     </div>
   </div>
 </template>
@@ -55,10 +91,13 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import lanes from '@/data/lanes.json'
 
 const router = useRouter()
 const origin = ref('')
 const destination = ref('')
+const searchTriggered = ref(false)
+const filteredLanes = ref([])
 
 const swapLocations = () => {
   const temp = origin.value
@@ -67,7 +106,22 @@ const swapLocations = () => {
 }
 
 const findRoutes = () => {
-  router.push('/canvas')
+  searchTriggered.value = true
+  const o = origin.value.trim().toLowerCase()
+  const d = destination.value.trim().toLowerCase()
+  filteredLanes.value = lanes.filter(lane => {
+    const matchOrigin = !o || lane.origin.city.toLowerCase().includes(o)
+    const matchDest   = !d || lane.destination.city.toLowerCase().includes(d)
+    return matchOrigin && matchDest
+  })
+}
+
+const createNewLane = () => {
+  router.push({ path: '/create', query: { origin: origin.value, destination: destination.value } })
+}
+
+const openLane = (lane) => {
+  router.push({ path: '/canvas', query: { laneId: lane.id } })
 }
 </script>
 
@@ -265,5 +319,174 @@ label {
 
 .create-link:hover {
   background: var(--primary-glow);
+}
+
+/* RESULTS SECTION */
+.dashboard-content {
+  overflow-y: auto;
+}
+
+.results-section {
+  width: 70%;
+  margin: 28px auto 0;
+}
+
+/* No results */
+.no-results-box {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 48px 32px;
+  text-align: center;
+  box-shadow: var(--shadow-float);
+}
+
+.no-results-icon {
+  font-size: 36px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.no-results-msg {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0 0 20px 0;
+}
+
+.btn-create-lane {
+  background: var(--primary);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 10px;
+  border: none;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-create-lane:hover {
+  background: var(--primary-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px var(--primary-glow);
+}
+
+/* Lane cards grid */
+.lanes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding-bottom: 40px;
+}
+
+.lane-card {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: var(--shadow-float);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.lane-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1);
+}
+
+.lane-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lane-route-text {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.3;
+}
+
+.lane-product-badge {
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--primary-glow);
+  color: var(--primary);
+  border-radius: 20px;
+  padding: 4px 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.lane-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.meta-row {
+  display: flex;
+  gap: 24px;
+}
+
+.meta-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.meta-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.meta-value.certs {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.open-lane-btn {
+  margin-top: auto;
+  width: 100%;
+  background: transparent;
+  border: 1.5px solid var(--primary);
+  color: var(--primary);
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.open-lane-btn:hover {
+  background: var(--primary);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px var(--primary-glow);
+}
+
+/* Transition */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(12px);
 }
 </style>

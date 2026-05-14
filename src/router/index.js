@@ -7,6 +7,8 @@ import Lanes from '../pages/Lanes.vue'
 import Login from '../pages/Login.vue'
 import Register from '../pages/Register.vue'
 import Profile from '../pages/Profile.vue'
+import Settings from '../pages/Settings.vue'
+import Notifications from '../pages/Notifications.vue'
 
 const routes = [
   {
@@ -45,6 +47,16 @@ const routes = [
     path: '/profile',
     name: 'Profile',
     component: Profile
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: Settings
+  },
+  {
+    path: '/notifications',
+    name: 'Notifications',
+    component: Notifications
   }
 ]
 

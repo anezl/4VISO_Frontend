@@ -1,0 +1,625 @@
+[
+  {
+    "id": "lane-001",
+    "name": "Madrid \u2192 Mechelen",
+    "origin": {
+      "city": "Madrid",
+      "country": "Spain",
+      "code": "MAD",
+      "company": "PharmaM"
+    },
+    "destination": {
+      "city": "Mechelen",
+      "country": "Belgium",
+      "code": "MCH",
+      "company": "PharmaBe"
+    },
+    "productType": "Pharmaceutical",
+    "certificates": [
+      "GDP",
+      "ISO 9001"
+    ],
+    "createdAt": "2025-03-12",
+    "nodes": [
+      {
+        "id": "node-001-1",
+        "location": "Madrid",
+        "company": "PharmaM",
+        "type": "warehouse",
+        "transport": "road",
+        "validationStatus": "validated",
+        "certificates": [
+          "GDP",
+          "ISO 9001"
+        ],
+        "temperatureControl": {
+          "min": 2,
+          "max": 8
+        },
+        "fragile": true
+      },
+      {
+        "id": "node-001-2",
+        "location": "Barcelona",
+        "company": "MedTrans ES",
+        "type": "hub",
+        "transport": "road",
+        "validationStatus": "validated",
+        "certificates": [
+          "GDP",
+          "IATA"
+        ],
+        "temperatureControl": {
+          "min": 2,
+          "max": 8
+        },
+        "fragile": false
+      },
+      {
+        "id": "node-001-3",
+        "location": "Brussels Airport",
+        "company": "AirCargo BE",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "validated",
+        "certificates": [
+          "IATA",
+          "GDP"
+        ],
+        "temperatureControl": {
+          "min": 2,
+          "max": 8
+        },
+        "fragile": false
+      },
+      {
+        "id": "node-001-4",
+        "location": "Mechelen",
+        "company": "PharmaBe",
+        "type": "warehouse",
+        "transport": "road",
+        "validationStatus": "validated",
+        "certificates": [
+          "GDP",
+          "ISO 13485"
+        ],
+        "temperatureControl": {
+          "min": 2,
+          "max": 8
+        },
+        "fragile": true
+      }
+    ]
+  },
+  {
+    "id": "lane-002",
+    "name": "Amsterdam \u2192 Milan",
+    "origin": {
+      "city": "Amsterdam",
+      "country": "Netherlands",
+      "code": "AMS",
+      "company": "BioNorth"
+    },
+    "destination": {
+      "city": "Milan",
+      "country": "Italy",
+      "code": "MXP",
+      "company": "PharmaIT"
+    },
+    "productType": "Vaccines",
+    "certificates": [
+      "GDP",
+      "IATA",
+      "ISO 13485"
+    ],
+    "createdAt": "2025-02-20",
+    "nodes": [
+      {
+        "id": "node-002-1",
+        "location": "Amsterdam",
+        "company": "BioNorth",
+        "type": "warehouse",
+        "transport": "road",
+        "validationStatus": "validated",
+        "certificates": [
+          "GDP",
+          "ISO 13485"
+        ],
+        "temperatureControl": {
+          "min": -20,
+          "max": -10
+        },
+        "fragile": true
+      },
+      {
+        "id": "node-002-2",
+        "location": "Schiphol Airport",
+        "company": "KLM Cargo",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "validated",
+        "certificates": [
+          "IATA",
+          "GDP"
+        ],
+        "temperatureControl": {
+          "min": -20,
+          "max": -10
+        },
+        "fragile": false
+      },
+      {
+        "id": "node-002-3",
+        "location": "Milan Malpensa",
+        "company": "ItaloCargo",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "pending",
+        "certificates": [
+          "IATA"
+        ],
+        "temperatureControl": null,
+        "fragile": false
+      },
+      {
+        "id": "node-002-4",
+        "location": "Milan",
+        "company": "PharmaIT",
+        "type": "warehouse",
+        "transport": "road",
+        "validationStatus": "validated",
+        "certificates": [
+          "GDP",
+          "ISO 13485"
+        ],
+        "temperatureControl": {
+          "min": -20,
+          "max": -10
+        },
+        "fragile": true
+      }
+    ]
+  },
+  {
+    "id": "lane-003",
+    "name": "Frankfurt \u2192 Warsaw",
+    "origin": {
+      "city": "Frankfurt",
+      "country": "Germany",
+      "code": "FRA",
+      "company": "BioLogix DE"
+    },
+    "destination": {
+      "city": "Warsaw",
+      "country": "Poland",
+      "code": "WAW",
+      "company": "MedPol"
+    },
+    "productType": "Biological",
+    "certificates": [
+      "GDP"
+    ],
+    "createdAt": "2025-04-01",
+    "nodes": [
+      {
+        "id": "node-003-1",
+        "location": "Frankfurt",
+        "company": "BioLogix DE",
+        "type": "warehouse",
+        "transport": "road",
+        "validationStatus": "validated",
+        "certificates": [
+          "GDP"
+        ],
+        "temperatureControl": {
+          "min": 2,
+          "max": 8
+        },
+        "fragile": true
+      },
+      {
+        "id": "node-003-2",
+        "location": "Frankfurt Airport",
+        "company": "Lufthansa Cargo",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "validated",
+        "certificates": [
+          "IATA",
+          "GDP"
+        ],
+        "temperatureControl": {
+          "min": 2,
+          "max": 8
+        },
+        "fragile": false
+      },
+      {
+        "id": "node-003-3",
+        "location": "Warsaw Chopin",
+        "company": "LOT Cargo",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "not_validated",
+        "certificates": [],
+        "temperatureControl": null,
+        "fragile": false
+      },
+      {
+        "id": "node-003-4",
+        "location": "Warsaw",
+        "company": "MedPol",
+        "type": "warehouse",
+        "transport": "road",
+        "validationStatus": "not_validated",
+        "certificates": [],
+        "temperatureControl": null,
+        "fragile": false
+      }
+    ]
+  },
+  {
+    "id": "lane-004",
+    "name": "London \u2192 Barcelona",
+    "origin": {
+      "city": "London",
+      "country": "UK",
+      "code": "LHR",
+      "company": "PharmUK Ltd"
+    },
+    "destination": {
+      "city": "Barcelona",
+      "country": "Spain",
+      "code": "BCN",
+      "company": "MedES"
+    },
+    "productType": "Medical Devices",
+    "certificates": [
+      "ISO 13485",
+      "ISO 28000",
+      "GDP"
+    ],
+    "createdAt": "2025-01-15",
+    "nodes": [
+      {
+        "id": "node-004-1",
+        "location": "London Heathrow",
+        "company": "PharmUK Ltd",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "validated",
+        "certificates": [
+          "ISO 13485",
+          "GDP",
+          "IATA"
+        ],
+        "temperatureControl": {
+          "min": 15,
+          "max": 25
+        },
+        "fragile": true
+      },
+      {
+        "id": "node-004-2",
+        "location": "Barcelona El Prat",
+        "company": "Iberia Cargo",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "validated",
+        "certificates": [
+          "IATA",
+          "GDP",
+          "ISO 28000"
+        ],
+        "temperatureControl": {
+          "min": 15,
+          "max": 25
+        },
+        "fragile": false
+      },
+      {
+        "id": "node-004-3",
+        "location": "Barcelona",
+        "company": "MedES",
+        "type": "warehouse",
+        "transport": "road",
+        "validationStatus": "validated",
+        "certificates": [
+          "ISO 13485",
+          "GDP"
+        ],
+        "temperatureControl": {
+          "min": 15,
+          "max": 25
+        },
+        "fragile": true
+      }
+    ]
+  },
+  {
+    "id": "lane-005",
+    "name": "Paris \u2192 Zurich",
+    "origin": {
+      "city": "Paris",
+      "country": "France",
+      "code": "CDG",
+      "company": "BioFrance"
+    },
+    "destination": {
+      "city": "Zurich",
+      "country": "Switzerland",
+      "code": "ZRH",
+      "company": "SwissMed"
+    },
+    "productType": "Pharmaceutical",
+    "certificates": [
+      "GDP",
+      "ISO 9001",
+      "IATA"
+    ],
+    "createdAt": "2025-03-28",
+    "nodes": [
+      {
+        "id": "node-005-1",
+        "location": "Paris CDG",
+        "company": "BioFrance",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "validated",
+        "certificates": [
+          "GDP",
+          "IATA",
+          "ISO 9001"
+        ],
+        "temperatureControl": {
+          "min": 2,
+          "max": 8
+        },
+        "fragile": false
+      },
+      {
+        "id": "node-005-2",
+        "location": "Zurich Airport",
+        "company": "Swiss WorldCargo",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "validated",
+        "certificates": [
+          "IATA",
+          "GDP"
+        ],
+        "temperatureControl": {
+          "min": 2,
+          "max": 8
+        },
+        "fragile": false
+      },
+      {
+        "id": "node-005-3",
+        "location": "Zurich",
+        "company": "SwissMed",
+        "type": "warehouse",
+        "transport": "road",
+        "validationStatus": "validated",
+        "certificates": [
+          "GDP",
+          "ISO 9001"
+        ],
+        "temperatureControl": {
+          "min": 2,
+          "max": 8
+        },
+        "fragile": false
+      }
+    ]
+  },
+  {
+    "id": "lane-006",
+    "name": "Lisbon \u2192 Helsinki",
+    "origin": {
+      "city": "Lisbon",
+      "country": "Portugal",
+      "code": "LIS",
+      "company": "MedPort"
+    },
+    "destination": {
+      "city": "Helsinki",
+      "country": "Finland",
+      "code": "HEL",
+      "company": "NordicPharma"
+    },
+    "productType": "Vaccines",
+    "certificates": [
+      "GDP",
+      "IATA",
+      "ISO 13485"
+    ],
+    "createdAt": "2025-04-10",
+    "nodes": [
+      {
+        "id": "node-006-1",
+        "location": "Lisbon",
+        "company": "MedPort",
+        "type": "warehouse",
+        "transport": "road",
+        "validationStatus": "validated",
+        "certificates": [
+          "GDP",
+          "ISO 13485"
+        ],
+        "temperatureControl": {
+          "min": -20,
+          "max": -10
+        },
+        "fragile": true
+      },
+      {
+        "id": "node-006-2",
+        "location": "Lisbon Humberto Delgado Airport",
+        "company": "TAP Cargo",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "validated",
+        "certificates": [
+          "IATA",
+          "GDP"
+        ],
+        "temperatureControl": {
+          "min": -20,
+          "max": -10
+        },
+        "fragile": false
+      },
+      {
+        "id": "node-006-3",
+        "location": "Madrid Barajas",
+        "company": "Iberia Express Cargo",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "validated",
+        "certificates": [
+          "IATA",
+          "GDP",
+          "ISO 9001"
+        ],
+        "temperatureControl": {
+          "min": -20,
+          "max": -10
+        },
+        "fragile": false
+      },
+      {
+        "id": "node-006-4",
+        "location": "Madrid Cold Hub",
+        "company": "ColdChain ES",
+        "type": "warehouse",
+        "transport": "road",
+        "validationStatus": "validated",
+        "certificates": [
+          "GDP",
+          "ISO 13485"
+        ],
+        "temperatureControl": {
+          "min": -20,
+          "max": -10
+        },
+        "fragile": true
+      },
+      {
+        "id": "node-006-5",
+        "location": "Paris Charles de Gaulle",
+        "company": "Air France Cargo",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "validated",
+        "certificates": [
+          "IATA",
+          "GDP"
+        ],
+        "temperatureControl": {
+          "min": -20,
+          "max": -10
+        },
+        "fragile": false
+      },
+      {
+        "id": "node-006-6",
+        "location": "Paris Pharma Hub",
+        "company": "BioStoreFR",
+        "type": "hub",
+        "transport": "road",
+        "validationStatus": "pending",
+        "certificates": [
+          "GDP"
+        ],
+        "temperatureControl": {
+          "min": -20,
+          "max": -10
+        },
+        "fragile": false
+      },
+      {
+        "id": "node-006-7",
+        "location": "Copenhagen Airport",
+        "company": "SAS Cargo",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "validated",
+        "certificates": [
+          "IATA",
+          "GDP",
+          "ISO 13485"
+        ],
+        "temperatureControl": {
+          "min": -20,
+          "max": -10
+        },
+        "fragile": false
+      },
+      {
+        "id": "node-006-8",
+        "location": "Copenhagen Distribution Center",
+        "company": "NordDist",
+        "type": "warehouse",
+        "transport": "road",
+        "validationStatus": "validated",
+        "certificates": [
+          "GDP",
+          "ISO 9001"
+        ],
+        "temperatureControl": {
+          "min": -20,
+          "max": -10
+        },
+        "fragile": true
+      },
+      {
+        "id": "node-006-9",
+        "location": "Stockholm Arlanda",
+        "company": "SAS Cargo",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "pending",
+        "certificates": [
+          "IATA"
+        ],
+        "temperatureControl": null,
+        "fragile": false
+      },
+      {
+        "id": "node-006-10",
+        "location": "Helsinki Vantaa Airport",
+        "company": "Finnair Cargo",
+        "type": "airport",
+        "transport": "air",
+        "validationStatus": "validated",
+        "certificates": [
+          "IATA",
+          "GDP"
+        ],
+        "temperatureControl": {
+          "min": -20,
+          "max": -10
+        },
+        "fragile": false
+      },
+      {
+        "id": "node-006-11",
+        "location": "Helsinki",
+        "company": "NordicPharma",
+        "type": "warehouse",
+        "transport": "road",
+        "validationStatus": "validated",
+        "certificates": [
+          "GDP",
+          "ISO 13485"
+        ],
+        "temperatureControl": {
+          "min": -20,
+          "max": -10
+        },
+        "fragile": true
+      }
+    ]
+  }
+]

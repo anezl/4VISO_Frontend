@@ -39,15 +39,37 @@
       <div class="form-scroll">
       <div class="form-inner">
 
-        <!-- 01 PRODUCT TYPE -->
+        <!-- 00 ROUTE -->
         <section class="card">
+          <div class="card-header">
+            <span class="card-num">00</span>
+            <div>
+              <div class="card-title">Route</div>
+              <div class="card-hint">Origin and destination cities</div>
+            </div>
+          </div>
+          <div class="inline-row">
+            <div class="fg">
+              <label>Origin</label>
+              <input type="text" v-model="routeOrigin" placeholder="City, Country" class="inp" />
+            </div>
+            <div class="fg">
+              <label>Destination</label>
+              <input type="text" v-model="routeDestination" placeholder="City, Country" class="inp" />
+            </div>
+          </div>
+        </section>
+
+        <!-- 01 PRODUCT TYPE -->
+        <section class="card" :class="{ 'card-error': showErrors && errors.productType }">
           <div class="card-header">
             <span class="card-num">01</span>
             <div>
-              <div class="card-title">Product Type</div>
+              <div class="card-title">Product Type <span class="required-star">*</span></div>
               <div class="card-hint">Select the category of goods being shipped</div>
             </div>
           </div>
+          <div class="error-msg" v-if="showErrors && errors.productType">Please select a product type.</div>
           <div class="product-grid">
             <label
               v-for="pt in productTypes"
@@ -65,40 +87,46 @@
         <!-- 02 + 03 side by side -->
         <div class="two-panels">
 
-          <section class="card">
+          <section class="card" :class="{ 'card-error': showErrors && errors.packageSpecs }">
             <div class="card-header">
               <span class="card-num">02</span>
               <div>
-                <div class="card-title">Package Specs</div>
+                <div class="card-title">Package Specs <span class="required-star">*</span></div>
                 <div class="card-hint">Dimensions, weight &amp; quantity</div>
               </div>
             </div>
+            <div class="error-msg" v-if="showErrors && errors.packageSpecs">All dimensions, weight and quantity are required.</div>
 
             <div class="dims-row">
               <div class="fg">
                 <label>Length <span class="unit">cm</span></label>
-                <input type="number" v-model="pkg.length" placeholder="0" class="inp" min="0" />
+                <input type="number" v-model="pkg.length" placeholder="0" min="0"
+                  class="inp" :class="{ 'inp-error': showErrors && !pkg.length }" />
               </div>
               <span class="dim-sep">×</span>
               <div class="fg">
                 <label>Width <span class="unit">cm</span></label>
-                <input type="number" v-model="pkg.width" placeholder="0" class="inp" min="0" />
+                <input type="number" v-model="pkg.width" placeholder="0" min="0"
+                  class="inp" :class="{ 'inp-error': showErrors && !pkg.width }" />
               </div>
               <span class="dim-sep">×</span>
               <div class="fg">
                 <label>Height <span class="unit">cm</span></label>
-                <input type="number" v-model="pkg.height" placeholder="0" class="inp" min="0" />
+                <input type="number" v-model="pkg.height" placeholder="0" min="0"
+                  class="inp" :class="{ 'inp-error': showErrors && !pkg.height }" />
               </div>
             </div>
 
             <div class="inline-row">
               <div class="fg">
                 <label>Weight <span class="unit">kg</span></label>
-                <input type="number" v-model="pkg.weight" placeholder="0.0" class="inp" min="0" step="0.1" />
+                <input type="number" v-model="pkg.weight" placeholder="0.0" min="0" step="0.1"
+                  class="inp" :class="{ 'inp-error': showErrors && !pkg.weight }" />
               </div>
               <div class="fg">
                 <label>Quantity <span class="unit">units</span></label>
-                <input type="number" v-model="pkg.quantity" placeholder="1" class="inp" min="1" />
+                <input type="number" v-model="pkg.quantity" placeholder="1" min="1"
+                  class="inp" :class="{ 'inp-error': showErrors && !pkg.quantity }" />
               </div>
             </div>
           </section>
@@ -140,14 +168,15 @@
         </div>
 
         <!-- 04 CERTIFICATES -->
-        <section class="card">
+        <section class="card" :class="{ 'card-error': showErrors && errors.certificates }">
           <div class="card-header">
             <span class="card-num">04</span>
             <div>
-              <div class="card-title">Required Certificates</div>
+              <div class="card-title">Required Certificates <span class="required-star">*</span></div>
               <div class="card-hint">Select all applicable compliance certificates</div>
             </div>
           </div>
+          <div class="error-msg" v-if="showErrors && errors.certificates">Please select at least one certificate.</div>
           <div class="cert-chips">
             <label v-for="cert in certificatesList" :key="cert" class="cert-chip">
               <input type="checkbox" :value="cert" v-model="selectedCertificates" />
@@ -175,10 +204,19 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
+const route  = useRoute()
+
+const routeOrigin      = ref('')
+const routeDestination = ref('')
+
+onMounted(() => {
+  if (route.query.origin)      routeOrigin.value      = route.query.origin
+  if (route.query.destination) routeDestination.value = route.query.destination
+})
 
 const productType = ref('')
 const productTypes = [
@@ -197,13 +235,25 @@ const isFragile = ref(false)
 const selectedCertificates = ref([])
 const certificatesList = ['GDP', 'IATA', 'ISO 9001', 'ISO 13485', 'ISO 28000']
 
+const showErrors = ref(false)
+
+const errors = computed(() => ({
+  productType:  !productType.value,
+  packageSpecs: !pkg.length || !pkg.width || !pkg.height || !pkg.weight || !pkg.quantity,
+  certificates: selectedCertificates.value.length === 0,
+}))
+
 const goToCanvas = () => {
+  showErrors.value = true
+  if (errors.value.productType || errors.value.packageSpecs || errors.value.certificates) return
   localStorage.setItem('routeData', JSON.stringify({
-    productType: productType.value,
-    package: { ...pkg },
-    tempMin: tempMin.value,
-    tempMax: tempMax.value,
-    isFragile: isFragile.value,
+    origin:       routeOrigin.value,
+    destination:  routeDestination.value,
+    productType:  productType.value,
+    package:      { ...pkg },
+    tempMin:      tempMin.value,
+    tempMax:      tempMax.value,
+    isFragile:    isFragile.value,
     certificates: selectedCertificates.value,
   }))
   router.push('/canvas')
@@ -381,6 +431,53 @@ const goToCanvas = () => {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.card.card-error {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.required-star {
+  color: #ef4444;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.error-msg {
+  font-size: 12px;
+  font-weight: 500;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: -8px;
+}
+
+.error-msg::before {
+  content: '!';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.inp.inp-error {
+  border-color: #ef4444;
+  background: #fff5f5;
+}
+
+.inp.inp-error:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
 }
 
 .card-header {

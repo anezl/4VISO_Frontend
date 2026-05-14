@@ -113,7 +113,7 @@
                 :y1="rowToY(nodes[i].row   || 0)"
                 :x2="colToX(i+1) + HEX_W / 2"
                 :y2="rowToY(nodes[i+1].row || 0)"
-                stroke="#cbd5e0" stroke-width="2.5" stroke-dasharray="6 4"
+                stroke="#B8C2CC" stroke-width="2" stroke-dasharray="6 5"
               />
             </svg>
 
@@ -124,6 +124,7 @@
                 'is-dragged':   draggedIndex === index,
                 'remove-mode':  removingMode  && node.type === 'intermediary',
                 'backup-pick':  backupPickMode && node.type === 'intermediary',
+                'is-endpoint':  node.type === 'origin' || node.type === 'destination',
               }"
               :style="nodeStyle(index)"
             >
@@ -132,12 +133,15 @@
                 :class="{
                   'remove-target':      removingMode  && node.type === 'intermediary',
                   'backup-pick-target': backupPickMode && node.type === 'intermediary',
+                  'backup-drop-target': backupDrag.active && backupDrag.nodeIdx === index && backupDrag.overPrimary,
                 }"
                 @mousedown.stop="onHexMouseDown($event, index)"
                 @click="handleHexClick($event, index)"
                 @dblclick="!removingMode && !backupPickMode && openModal(index)"
               >
-                <div class="hex primary-hex">
+                <div class="hex primary-hex"
+                  :style="node.type === 'intermediary' ? transportHexStyle(node.details.transportType) : {}"
+                >
                   <div v-if="removingMode && node.type === 'intermediary'" class="remove-x">×</div>
                   <div v-else-if="backupPickMode && node.type === 'intermediary'" class="backup-pick-icon">⊕</div>
                   <template v-else>
@@ -158,16 +162,21 @@
               <template v-if="node.backups && node.backups.length > 0">
                 <div v-for="(backup, bIndex) in node.backups" :key="'b'+bIndex" class="backup-stack">
                   <div class="backup-connector"></div>
-                  <div class="hex-shadow backup-shadow-wrap">
-                    <div class="hex backup-hex" @dblclick.stop="openModal(index)">
-                      <div class="hex-content">
+                  <div class="hex-shadow backup-shadow-wrap"
+                    :class="{ 'remove-target': removingMode }"
+                    :style="backupDrag.active && backupDrag.nodeIdx === index && backupDrag.bkIdx === bIndex ? { opacity: 0 } : {}"
+                    @mousedown.stop="onBackupMouseDown($event, index, bIndex)"
+                    @click.stop="handleBackupClick(index, bIndex)"
+                    @dblclick.stop="!removingMode && openBackupModal(index, bIndex)"
+                  >
+                    <div class="hex backup-hex">
+                      <div v-if="removingMode" class="remove-x">×</div>
+                      <div class="hex-content" v-else>
                         <span class="hc-icon">{{ transportIcon(backup.transportType) }}</span>
                         <span class="hc-loc backup-label-text">{{ backup.location || `Backup ${bIndex + 1}` }}</span>
                         <span class="hc-company" v-if="backup.company">{{ backup.company }}</span>
                       </div>
-                      <div class="backup-badge">B{{ bIndex + 1 }}</div>
-                      <button class="swap-btn"        @click.stop="swapBackup(index, bIndex)"   title="Swap with primary">↑↓</button>
-                      <button class="remove-backup-x" @click.stop="removeBackup(index, bIndex)" title="Remove backup">×</button>
+                      <div class="backup-badge" v-if="!removingMode">B{{ bIndex + 1 }}</div>
                     </div>
                   </div>
                 </div>
@@ -176,6 +185,16 @@
 
             <!-- DRAG GHOST -->
             <div v-if="isDragging && ghost.visible" class="drag-ghost" :style="ghostStyle"></div>
+
+            <!-- BACKUP DRAG GHOST -->
+            <div v-if="backupDrag.active" class="backup-drag-ghost" :style="backupGhostStyle">
+              <div class="hex backup-hex">
+                <div class="hex-content">
+                  <span class="hc-icon">{{ transportIcon(nodes[backupDrag.nodeIdx]?.backups[backupDrag.bkIdx]?.transportType) }}</span>
+                  <span class="hc-loc backup-label-text">{{ nodes[backupDrag.nodeIdx]?.backups[backupDrag.bkIdx]?.location || 'Backup' }}</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Zoom controls overlay -->
@@ -196,8 +215,14 @@
       <div class="modal-duo" v-if="editingFormData">
         <div class="preview-panel">
           <p class="preview-lbl">Preview</p>
-          <div class="hex-preview-wrap">
-            <div class="hex-lg" :class="editingFormData.type">
+          <div class="hex-preview-wrap"
+            :style="editingFormData.type === 'intermediary'
+              ? { filter: `drop-shadow(0 14px 44px ${transportColors[editingFormData.details.transportType || 'road'].from}88)` }
+              : {}"
+          >
+            <div class="hex-lg" :class="editingFormData.type"
+              :style="editingFormData.type === 'intermediary' ? transportHexStyle(editingFormData.details.transportType) : {}"
+            >
               <template v-if="editingFormData.type === 'origin' || editingFormData.type === 'destination'">
                 <span class="hlg-loc">{{ editingFormData.details.location || (editingFormData.type === 'origin' ? 'Origin' : 'Destination') }}</span>
                 <span class="hlg-co" v-if="editingFormData.details.company">{{ editingFormData.details.company }}</span>
@@ -249,23 +274,8 @@
               </div>
             </template>
             <template v-if="editingFormData.type === 'intermediary' && editingFormData.backups?.length > 0">
-              <div class="backups-section">
-                <div class="backups-section-header">Backup Nodes</div>
-                <div v-for="(backup, bIdx) in editingFormData.backups" :key="bIdx" class="backup-editor">
-                  <div class="backup-editor-header">
-                    <span class="backup-editor-label">Backup {{ bIdx + 1 }}</span>
-                    <button class="backup-editor-remove" @click="editingFormData.backups.splice(bIdx, 1)">× Remove</button>
-                  </div>
-                  <input v-model="backup.location" class="modern-input" placeholder="Location / City" style="margin-bottom:6px" />
-                  <input v-model="backup.company"  class="modern-input" placeholder="Company"         style="margin-bottom:6px" />
-                  <div class="transport-btns">
-                    <button v-for="t in transportTypes" :key="t.value" type="button"
-                      class="t-btn" :class="{ active: backup.transportType === t.value }"
-                      @click="backup.transportType = t.value">
-                      <span>{{ t.icon }}</span><span>{{ t.label }}</span>
-                    </button>
-                  </div>
-                </div>
+              <div class="form-group">
+                <p class="field-hint" style="margin:0">This node has {{ editingFormData.backups.length }} backup{{ editingFormData.backups.length > 1 ? 's' : '' }}. Double-click a backup hexagon to edit it.</p>
               </div>
             </template>
           </div>
@@ -277,14 +287,63 @@
       </div>
     </div>
 
+    <!-- BACKUP MODAL -->
+    <div class="modal-overlay" v-if="editingBackupData !== null" @click.self="closeBackupModal">
+      <div class="modal-duo">
+        <div class="preview-panel">
+          <p class="preview-lbl">Preview</p>
+          <div class="hex-preview-wrap" style="filter: drop-shadow(0 14px 44px rgba(0,0,0,0.22))">
+            <div class="hex-lg backup-modal-hex">
+              <span class="hlg-icon">{{ transportIcon(editingBackupData?.transportType) }}</span>
+              <span class="hlg-loc">{{ editingBackupData?.location || 'Location' }}</span>
+              <span class="hlg-co" v-if="editingBackupData?.company">{{ editingBackupData.company }}</span>
+            </div>
+          </div>
+          <span class="preview-type-badge">Backup Node</span>
+        </div>
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>Edit Backup Node</h3>
+            <button class="close-btn" @click="closeBackupModal">×</button>
+          </div>
+          <div class="modal-form">
+            <div class="form-group">
+              <label>Location</label>
+              <input v-model="editingBackupData.location" class="modern-input" placeholder="City, Airport, Port…" />
+            </div>
+            <div class="form-group">
+              <label>Transport / Facility Type</label>
+              <div class="transport-btns">
+                <button v-for="t in transportTypes" :key="t.value" type="button"
+                  class="t-btn" :class="{ active: editingBackupData.transportType === t.value }"
+                  @click="editingBackupData.transportType = t.value">
+                  <span>{{ t.icon }}</span><span>{{ t.label }}</span>
+                </button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Company <span class="lbl-note">(certified carriers)</span></label>
+              <input v-model="editingBackupData.company" class="modern-input" placeholder="e.g. DHL, FedEx…" />
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="closeBackupModal">Cancel</button>
+            <button class="btn-save"   @click="saveBackupDetails">Save Details</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, reactive, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
+import lanesData from '@/data/lanes.json'
 
 const router = useRouter()
+const route  = useRoute()
 
 // ─── Layout constants ─────────────────────────────────────────────
 const HEX_W    = 170
@@ -403,6 +462,19 @@ const transportTypes = [
   { value: 'warehouse', label: 'Warehouse', icon: '🏭' },
 ]
 const transportIcon = (type) => transportTypes.find(x => x.value === type)?.icon ?? '🚛'
+
+const transportColors = {
+  road:      { from: '#D97448', to: '#C46B2D' },
+  air:       { from: '#D4A83A', to: '#C79A2B' },
+  sea:       { from: '#2585A3', to: '#1F6F8B' },
+  rail:      { from: '#5488CB', to: '#4874B5' },
+  warehouse: { from: '#8267CF', to: '#6D4BC3' },
+}
+
+const transportHexStyle = (transportType) => {
+  const c = transportColors[transportType] || transportColors.road
+  return { background: `linear-gradient(135deg, ${c.from} 0%, ${c.to} 100%)` }
+}
 const nodeTypeLabel = (type) =>
   type === 'origin' ? 'Origin Node' : type === 'destination' ? 'Destination Node' : 'Intermediary Node'
 
@@ -429,6 +501,26 @@ const saveNodeDetails = () => {
   closeModal()
 }
 
+// ─── Backup modal ─────────────────────────────────────────────────
+const editingBackupRef  = reactive({ nodeIdx: null, bkIdx: null })
+const editingBackupData = ref(null)
+
+const openBackupModal = (ni, bi) => {
+  editingBackupRef.nodeIdx = ni
+  editingBackupRef.bkIdx   = bi
+  editingBackupData.value  = { ...nodes.value[ni].backups[bi] }
+}
+const closeBackupModal = () => {
+  editingBackupRef.nodeIdx = null
+  editingBackupRef.bkIdx   = null
+  editingBackupData.value  = null
+}
+const saveBackupDetails = () => {
+  if (editingBackupRef.nodeIdx !== null && editingBackupData.value)
+    nodes.value[editingBackupRef.nodeIdx].backups[editingBackupRef.bkIdx] = { ...editingBackupData.value }
+  closeBackupModal()
+}
+
 // ─── Node CRUD ────────────────────────────────────────────────────
 const addNode = () => nodes.value.splice(nodes.value.length - 1, 0, {
   id: Date.now(), type: 'intermediary',
@@ -438,12 +530,50 @@ const addNode = () => nodes.value.splice(nodes.value.length - 1, 0, {
 const deleteNode = (index) => { if (nodes.value[index].type === 'intermediary') nodes.value.splice(index, 1); removingMode.value = false }
 const addBackupToNode = (index) => { if (!nodes.value[index].backups) nodes.value[index].backups = []; nodes.value[index].backups.push({ location: '', company: '', transportType: 'road' }) }
 const removeBackup = (ni, bi) => nodes.value[ni].backups.splice(bi, 1)
+const handleBackupClick = (ni, bi) => {
+  if (removingMode.value) { removeBackup(ni, bi); removingMode.value = false }
+}
 const swapBackup   = (ni, bi) => {
   const node = nodes.value[ni]
   const bk   = { ...node.backups[bi] }
   const pd   = { location: node.details.location, company: node.details.company, transportType: node.details.transportType }
   node.details.location = bk.location; node.details.company = bk.company; node.details.transportType = bk.transportType
   node.backups[bi] = pd
+}
+
+// ─── Backup drag (drag backup hex onto primary to swap) ──────────
+const backupDrag = reactive({ active: false, nodeIdx: -1, bkIdx: -1, rawX: 0, rawY: 0, overPrimary: false })
+let bkMouseDownX = 0, bkMouseDownY = 0, bkDragStarted = false
+
+const isOverPrimary = (relX, relY, ni) => {
+  const px = colToX(ni)
+  const py = rowToY(nodes.value[ni]?.row || 0) - HEX_H / 2
+  return relX >= px && relX <= px + HEX_W && relY >= py && relY <= py + HEX_H
+}
+
+const backupGhostStyle = computed(() => {
+  if (!backupDrag.active) return {}
+  return {
+    position: 'absolute',
+    left: (backupDrag.rawX - HEX_W / 2) + 'px',
+    top:  (backupDrag.rawY - HEX_H / 2) + 'px',
+    width: HEX_W + 'px',
+    height: HEX_H + 'px',
+    pointerEvents: 'none',
+    zIndex: 100,
+    filter: 'drop-shadow(0 12px 32px rgba(0,0,0,0.28))',
+    opacity: 0.85,
+  }
+})
+
+const onBackupMouseDown = (e, ni, bi) => {
+  if (e.button !== 0) return
+  e.preventDefault()
+  bkMouseDownX = e.clientX
+  bkMouseDownY = e.clientY
+  bkDragStarted = false
+  backupDrag.nodeIdx = ni
+  backupDrag.bkIdx   = bi
 }
 
 // ─── Mouse drag (nodes) ───────────────────────────────────────────
@@ -497,6 +627,21 @@ const handleHexClick = (e, index) => {
 
 // Global handlers (attached to window for smooth tracking outside viewport)
 const onMouseMove = (e) => {
+  if (backupDrag.nodeIdx !== -1) {
+    const dx = e.clientX - bkMouseDownX
+    const dy = e.clientY - bkMouseDownY
+    if (!bkDragStarted && Math.sqrt(dx * dx + dy * dy) >= DRAG_THRESHOLD) {
+      bkDragStarted = true
+      backupDrag.active = true
+    }
+    if (bkDragStarted) {
+      const { relX, relY } = toLaneCoords(e.clientX, e.clientY)
+      backupDrag.rawX = relX
+      backupDrag.rawY = relY
+      backupDrag.overPrimary = isOverPrimary(relX, relY, backupDrag.nodeIdx)
+    }
+    return
+  }
   if (mouseDownIndex !== -1) {
     const dx = e.clientX - mouseDownX
     const dy = e.clientY - mouseDownY
@@ -524,6 +669,15 @@ const onMouseMove = (e) => {
 }
 
 const onMouseUp = (e) => {
+  if (backupDrag.nodeIdx !== -1) {
+    if (bkDragStarted && backupDrag.overPrimary) swapBackup(backupDrag.nodeIdx, backupDrag.bkIdx)
+    backupDrag.active = false
+    backupDrag.nodeIdx = -1
+    backupDrag.bkIdx = -1
+    backupDrag.overPrimary = false
+    bkDragStarted = false
+    return
+  }
   if (mouseDownIndex !== -1 && draggingStarted && draggedIndex.value !== null) {
     const idx      = draggedIndex.value
     const { relX, relY } = toLaneCoords(e.clientX, e.clientY)
@@ -554,6 +708,39 @@ const onMouseUp = (e) => {
 onMounted(async () => {
   await nextTick()
   centerCanvas()
+
+  const laneId = route.query.laneId
+  if (laneId) {
+    const lane = lanesData.find(l => l.id === laneId)
+    if (lane) {
+      nodes.value = lane.nodes.map((n, i) => {
+        const isFirst = i === 0
+        const isLast  = i === lane.nodes.length - 1
+        const type    = isFirst ? 'origin' : isLast ? 'destination' : 'intermediary'
+        return {
+          id:      n.id,
+          type,
+          details: {
+            location:      n.location,
+            company:       n.company,
+            transportType: n.transport,
+          },
+          backups: [],
+          row:     0,
+        }
+      })
+    }
+  } else {
+    const stored = localStorage.getItem('routeData')
+    if (stored) {
+      try {
+        const data = JSON.parse(stored)
+        if (data.origin)      nodes.value[0].details.location                          = data.origin
+        if (data.destination) nodes.value[nodes.value.length - 1].details.location     = data.destination
+      } catch (_) {}
+    }
+  }
+
   viewportRef.value.addEventListener('wheel', onWheel, { passive: false })
   window.addEventListener('mousemove', onMouseMove)
   window.addEventListener('mouseup',   onMouseUp)
@@ -573,11 +760,11 @@ onUnmounted(() => {
   height: 100%;
 }
 
-/* ── Left info panel (same style as CreateRoute) ── */
+/* ── Left info panel ── */
 .step-panel {
   width: 240px;
   flex-shrink: 0;
-  background: var(--primary);
+  background: #1A3528;
   position: relative;
   overflow: hidden;
 }
@@ -611,11 +798,12 @@ onUnmounted(() => {
 .step-pill {
   display: inline-block;
   padding: 4px 12px;
-  background: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.12);
   border-radius: 999px;
-  color: rgba(255,255,255,0.9);
+  color: rgba(255,255,255,0.75);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-bottom: 18px;
@@ -682,7 +870,8 @@ onUnmounted(() => {
 /* Hint box */
 .hint-box {
   margin-top: 36px;
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: 10px;
   padding: 14px 16px;
   display: flex;
@@ -779,25 +968,25 @@ onUnmounted(() => {
 .route-banner {
   display: flex;
   align-items: center;
-  background: linear-gradient(135deg, #f0fdf6, #f9fafb);
-  border-bottom: 1px solid var(--border-color);
-  padding: 14px 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #E8EDF2;
+  padding: 12px 24px;
   flex-shrink: 0;
 }
 
-.route-ep { display: flex; flex-direction: column; gap: 2px; min-width: 140px; }
+.route-ep { display: flex; flex-direction: column; gap: 3px; min-width: 140px; }
 
 .ep-tag {
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
-.ep-tag.origin { color: var(--primary); }
-.ep-tag.dest   { color: var(--primary); }
+.ep-tag.origin { color: #1F7A5C; }
+.ep-tag.dest   { color: #1F7A5C; }
 
-.ep-name    { font-size: 18px; font-weight: 500; color: var(--text-main); line-height: 1.2; }
-.ep-company { font-size: 12px; color: var(--text-muted); }
+.ep-name    { font-size: 16px; font-weight: 600; color: var(--text-main); line-height: 1.25; }
+.ep-company { font-size: 11.5px; color: var(--text-muted); letter-spacing: 0.01em; }
 
 .banner-mid {
   display: flex;
@@ -806,17 +995,17 @@ onUnmounted(() => {
   gap: 8px;
   padding: 0 20px;
 }
-.banner-line  { flex: 1; height: 1px; background: var(--primary-glow); }
-.banner-stops { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
-.banner-arrow { font-size: 18px; color: var(--primary); }
+.banner-line  { flex: 1; height: 1px; background: #E8EDF2; }
+.banner-stops { font-size: 11px; color: var(--text-muted); white-space: nowrap; font-weight: 500; letter-spacing: 0.03em; }
+.banner-arrow { font-size: 16px; color: #1F7A5C; }
 
 /* ── Canvas viewport ── */
 .canvas-viewport {
   flex: 1;
   position: relative;
   overflow: hidden;
-  background-color: #f1f5f9;
-  background-image: radial-gradient(circle, #94a3b8 1px, transparent 1px);
+  background-color: #F7F9FB;
+  background-image: radial-gradient(circle, rgba(183, 194, 207, 0.55) 1px, transparent 1px);
   background-size: 28px 28px;
   user-select: none;
 }
@@ -848,9 +1037,11 @@ onUnmounted(() => {
 .node-wrapper.is-dragged { pointer-events: none; }
 
 /* ── Hex ── */
-.hex-shadow { filter: drop-shadow(0 4px 8px rgba(0,0,0,0.12)); cursor: grab; transition: filter 0.2s; }
-.hex-shadow:hover  { filter: drop-shadow(0 6px 16px rgba(0,0,0,0.2)); }
+.hex-shadow { filter: drop-shadow(0 6px 16px rgba(0,0,0,0.16)) drop-shadow(0 2px 4px rgba(0,0,0,0.08)); cursor: grab; transition: filter 0.22s; }
+.hex-shadow:hover  { filter: drop-shadow(0 10px 26px rgba(0,0,0,0.22)) drop-shadow(0 2px 6px rgba(0,0,0,0.1)); }
 .hex-shadow:active { cursor: grabbing; }
+.is-endpoint .hex-shadow { filter: drop-shadow(0 8px 22px rgba(31,122,92,0.32)) drop-shadow(0 2px 5px rgba(0,0,0,0.1)); }
+.is-endpoint .hex-shadow:hover { filter: drop-shadow(0 12px 30px rgba(31,122,92,0.45)) drop-shadow(0 3px 8px rgba(0,0,0,0.12)); }
 
 .remove-target      { filter: drop-shadow(0 4px 14px rgba(239,68,68,.45)); animation: pulse-red   0.8s infinite alternate; cursor: pointer !important; }
 .backup-pick-target { filter: drop-shadow(0 4px 14px rgba(31,111,84,.5));  animation: pulse-green 0.8s infinite alternate; cursor: pointer !important; }
@@ -867,8 +1058,8 @@ onUnmounted(() => {
   position: relative;
 }
 
-.primary-hex { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); }
-.backup-hex  { background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%); }
+.primary-hex { background: linear-gradient(135deg, #1F7A5C 0%, #269e76 100%); }
+.backup-hex  { background: linear-gradient(135deg, #576270 0%, #7a8b99 100%); }
 
 .hex-content { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; }
 .hc-icon     { font-size: 16px; }
@@ -880,21 +1071,22 @@ onUnmounted(() => {
 
 /* ── Backup stacks ── */
 .backup-stack     { display: flex; flex-direction: column; align-items: center; }
-.backup-connector { width: 2px; height: 14px; background: #cbd5e0; }
+.backup-connector { width: 2px; height: 14px; background: #B8C2CC; }
 .backup-shadow-wrap { position: relative; }
 
-.backup-badge    { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.35); color: #fff; font-size: 10px; font-weight: 600; border-radius: 10px; padding: 2px 7px; pointer-events: none; letter-spacing: .04em; }
-.swap-btn        { position: absolute; bottom: 20px; right: 18px; width: 24px; height: 24px; border-radius: 50%; background: rgba(255,255,255,.2); color: #fff; border: none; font-size: 12px; cursor: pointer; opacity: 0; transition: opacity .2s; display: flex; align-items: center; justify-content: center; }
-.backup-hex:hover .swap-btn { opacity: 1; }
-.remove-backup-x { position: absolute; top: 20px; right: 18px; width: 22px; height: 22px; border-radius: 50%; background: rgba(239,68,68,.5); color: #fff; border: none; font-size: 14px; cursor: pointer; opacity: 0; transition: opacity .2s; display: flex; align-items: center; justify-content: center; }
-.backup-hex:hover .remove-backup-x { opacity: 1; }
+.backup-shadow-wrap { cursor: grab; }
+.backup-shadow-wrap:active { cursor: grabbing; }
+.backup-badge    { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.28); color: #fff; font-size: 10px; font-weight: 600; border-radius: 10px; padding: 2px 7px; pointer-events: none; letter-spacing: .04em; }
+.backup-shadow-wrap:not(.remove-target):hover { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.2)) drop-shadow(0 2px 5px rgba(0,0,0,0.1)); }
+.backup-drag-ghost { position: absolute; pointer-events: none; z-index: 100; }
+.backup-drop-target { filter: drop-shadow(0 4px 14px rgba(31,122,92,.55)) !important; animation: pulse-green 0.8s infinite alternate; }
 
 /* ── Drag ghost ── */
 .drag-ghost {
   position: absolute; pointer-events: none; z-index: 10;
   clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-  background: rgba(31,111,84,0.12);
-  border: 2px dashed rgba(31,111,84,0.4);
+  background: rgba(31,122,92,0.08);
+  border: 2px dashed rgba(31,122,92,0.35);
   box-sizing: border-box;
 }
 
@@ -906,13 +1098,13 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 2px;
-  background: rgba(255,255,255,0.9);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid #E0E6ED;
   border-radius: 10px;
   padding: 4px 6px;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
 }
 
 .zoom-btn {
@@ -949,13 +1141,14 @@ onUnmounted(() => {
 
 .preview-panel    { display: flex; flex-direction: column; align-items: center; gap: 20px; flex-shrink: 0; }
 .preview-lbl      { font-size: 11px; font-weight: 500; color: rgba(255,255,255,.75); text-transform: uppercase; letter-spacing: .1em; margin: 0; }
-.hex-preview-wrap { filter: drop-shadow(0 14px 44px rgba(31,111,84,.55)); }
+.hex-preview-wrap { filter: drop-shadow(0 14px 44px rgba(31,122,92,.5)); }
 .hex-lg { width: 300px; height: 300px; clip-path: polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 32px; box-sizing: border-box; color: #fff; text-align: center; }
-.hex-lg.origin, .hex-lg.destination, .hex-lg.intermediary { background: linear-gradient(135deg, var(--primary), var(--primary-light)); }
+.hex-lg.origin, .hex-lg.destination, .hex-lg.intermediary { background: linear-gradient(135deg, #1F7A5C, #269e76); }
+.hex-lg.backup-modal-hex { background: linear-gradient(135deg, #576270, #7a8b99); }
 .hlg-icon { font-size: 36px; }
-.hlg-loc  { font-size: 18px; font-weight: 500; line-height: 1.2; word-break: break-word; }
-.hlg-co   { font-size: 13px; opacity: .85; word-break: break-word; }
-.preview-type-badge { font-size: 12px; font-weight: 500; color: rgba(255,255,255,.95); background: rgba(31,111,84,.35); border: 1px solid rgba(255,255,255,.35); border-radius: 20px; padding: 6px 18px; backdrop-filter: blur(6px); }
+.hlg-loc  { font-size: 18px; font-weight: 600; line-height: 1.2; word-break: break-word; }
+.hlg-co   { font-size: 13px; opacity: .8; word-break: break-word; }
+.preview-type-badge { font-size: 11.5px; font-weight: 500; color: rgba(255,255,255,.9); background: rgba(31,122,92,.3); border: 1px solid rgba(255,255,255,.25); border-radius: 20px; padding: 6px 18px; backdrop-filter: blur(6px); letter-spacing: 0.03em; }
 
 .modal-card    { background: #fff; width: 420px; border-radius: 20px; box-shadow: 0 24px 56px rgba(0,0,0,.2); display: flex; flex-direction: column; max-height: 88vh; flex-shrink: 0; }
 .modal-header  { padding: 18px 22px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
