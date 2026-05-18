@@ -14,55 +14,55 @@ const routes = [
   {
     path: '/',
     name: 'Dashboard',
-    component: Dashboard
+    component: Dashboard,
   },
   {
     path: '/create',
     name: 'CreateRoute',
-    component: CreateRoute
+    component: CreateRoute,
   },
   {
     path: '/canvas',
     name: 'RouteCanvas',
-    component: RouteCanvas
+    component: RouteCanvas,
   },
   {
     path: '/lanes',
     name: 'Lanes',
-    component: Lanes
+    component: Lanes,
   },
   {
     path: '/login',
     name: 'Login',
     component: Login,
-    meta: { hideLayout: true }
+    meta: { hideLayout: true },
   },
   {
     path: '/register',
     name: 'Register',
     component: Register,
-    meta: { hideLayout: true }
+    meta: { hideLayout: true },
   },
   {
     path: '/profile',
     name: 'Profile',
-    component: Profile
+    component: Profile,
   },
   {
     path: '/settings',
     name: 'Settings',
-    component: Settings
+    component: Settings,
   },
   {
     path: '/notifications',
     name: 'Notifications',
-    component: Notifications
-  }
+    component: Notifications,
+  },
 ]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
 })
 
 export default router
