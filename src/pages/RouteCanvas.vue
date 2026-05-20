@@ -125,6 +125,7 @@
                 'remove-mode':  removingMode  && node.type === 'intermediary',
                 'backup-pick':  backupPickMode && node.type === 'intermediary',
                 'is-endpoint':  node.type === 'origin' || node.type === 'destination',
+                'has-missing-certs': getMissingCertifications(node.certifications).length > 0,
               }"
               :style="nodeStyle(index)"
             >
@@ -155,6 +156,7 @@
                       <span class="hc-company" v-if="node.details.company">{{ node.details.company }}</span>
                     </div>
                   </template>
+                  <div v-if="getMissingCertifications(node.certifications).length > 0" class="cert-alert-badge" :title="`Missing: ${getMissingCertifications(node.certifications).join(', ')}`">⚠️</div>
                 </div>
               </div>
 
@@ -251,6 +253,17 @@
                 <label>{{ editingFormData.type === 'origin' ? 'Sending Company' : 'Receiving Company' }}</label>
                 <input v-model="editingFormData.details.company" class="modern-input" placeholder="e.g. PharmaCorp Inc." />
               </div>
+              <div class="form-group">
+                <label>Facility Type</label>
+                <div class="facility-btns">
+                  <button v-for="f in facilityTypes" :key="f.value" type="button"
+                    class="f-btn" :class="{ active: editingFormData.details.facilityType === f.value }"
+                    @click="editingFormData.details.facilityType = f.value"
+                    :title="f.label">
+                    <span>{{ f.icon }}</span><span class="f-label">{{ f.label }}</span>
+                  </button>
+                </div>
+              </div>
             </template>
             <template v-if="editingFormData.type === 'intermediary'">
               <div class="form-group">
@@ -273,9 +286,71 @@
                 <p class="field-hint">Certified companies matching your certificates will appear here in a future update.</p>
               </div>
             </template>
+            
+            <!-- CERTIFICATIONS SECTION -->
+            <div class="form-divider"></div>
+            <div class="form-group">
+              <label class="section-label">✓ Facility Certifications</label>
+              <div class="certifications-selector">
+                <label v-for="cert in certificatesList" :key="cert" class="cert-checkbox">
+                  <input type="checkbox" :value="cert" v-model="editingFormData.certifications" />
+                  <span class="cert-text">{{ cert }}</span>
+                </label>
+              </div>
+              <p class="field-hint">Select certifications this facility holds. Required: {{ requiredCertifications.join(', ') || 'None' }}</p>
+              <div v-if="getMissingCertifications(editingFormData.certifications).length > 0" class="missing-certs-alert">
+                <span class="alert-icon">⚠️</span>
+                <span>Missing: {{ getMissingCertifications(editingFormData.certifications).join(', ') }}</span>
+              </div>
+            </div>
+
             <template v-if="editingFormData.type === 'intermediary' && editingFormData.backups?.length > 0">
               <div class="form-group">
                 <p class="field-hint" style="margin:0">This node has {{ editingFormData.backups.length }} backup{{ editingFormData.backups.length > 1 ? 's' : '' }}. Double-click a backup hexagon to edit it.</p>
+              </div>
+            </template>
+
+            <!-- EXISTING CERTIFICATIONS (from loaded data) -->
+            <template v-if="editingFormData.certificates && editingFormData.certificates.length > 0 && editingFormData.type !== 'origin' && editingFormData.type !== 'destination'">
+              <div class="form-divider"></div>
+              <div class="form-group">
+                <label class="section-label">✓ Additional Node Data</label>
+                <div class="certs-display">
+                  <span v-for="cert in editingFormData.certificates" :key="cert" class="cert-tag">{{ cert }}</span>
+                </div>
+              </div>
+            </template>
+
+            <!-- TEMPERATURE CONTROL SECTION -->
+            <template v-if="editingFormData.temperatureControl && (editingFormData.temperatureControl.min !== undefined || editingFormData.temperatureControl.max !== undefined)">
+              <div class="form-divider"></div>
+              <div class="form-group">
+                <label class="section-label">🌡️ Temperature Control</label>
+                <div class="temp-display">
+                  <div class="temp-row">
+                    <span class="temp-min">{{ editingFormData.temperatureControl.min }}°C</span>
+                    <span class="temp-to">to</span>
+                    <span class="temp-max">{{ editingFormData.temperatureControl.max }}°C</span>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- VALIDATION & SPECIAL HANDLING -->
+            <template v-if="editingFormData.validationStatus || editingFormData.fragile !== undefined">
+              <div class="form-divider"></div>
+              <div class="form-group">
+                <label class="section-label">⚠️ Compliance & Handling</label>
+                <div class="compliance-display">
+                  <div v-if="editingFormData.validationStatus" class="compliance-item">
+                    <span class="compliance-label">Validation Status:</span>
+                    <span class="compliance-value" :class="'status-' + editingFormData.validationStatus">{{ validationStatusLabel(editingFormData.validationStatus) }}</span>
+                  </div>
+                  <div v-if="editingFormData.fragile !== undefined" class="compliance-item">
+                    <span class="compliance-label">Fragile Goods:</span>
+                    <span class="compliance-value" :class="{ 'status-fragile': editingFormData.fragile }">{{ editingFormData.fragile ? '⚠️ Yes (Requires careful handling)' : '✓ No' }}</span>
+                  </div>
+                </div>
               </div>
             </template>
           </div>
@@ -414,8 +489,8 @@ const onViewportMouseDown = (e) => {
 
 // ─── Nodes ────────────────────────────────────────────────────────
 const nodes = ref([
-  { id: 1, type: 'origin',      details: { company: '', location: '' },                       backups: [], row: 0 },
-  { id: 2, type: 'destination', details: { company: '', location: '' },                       backups: [], row: 0 },
+  { id: 1, type: 'origin',      details: { company: '', location: '', facilityType: 'warehouse' }, certifications: [], backups: [], row: 0 },
+  { id: 2, type: 'destination', details: { company: '', location: '', facilityType: 'warehouse' }, certifications: [], backups: [], row: 0 },
 ])
 
 const originNode        = computed(() => nodes.value.find(n => n.type === 'origin'))
@@ -463,6 +538,36 @@ const transportTypes = [
 ]
 const transportIcon = (type) => transportTypes.find(x => x.value === type)?.icon ?? '🚛'
 
+// ─── Facility types ───────────────────────────────────────────────
+const facilityTypes = [
+  { value: 'warehouse',  label: 'Warehouse',  icon: '🏭' },
+  { value: 'distribution', label: 'Distribution Center', icon: '🏢' },
+  { value: 'hub',        label: 'Hub',        icon: '🔀' },
+  { value: 'airport',    label: 'Airport',    icon: '✈️' },
+  { value: 'port',       label: 'Port',       icon: '⚓' },
+  { value: 'rail_yard',  label: 'Rail Yard',  icon: '🚆' },
+]
+
+// ─── Certifications ───────────────────────────────────────────────
+const certificatesList = ['GDP', 'IATA', 'ISO 9001', 'ISO 13485', 'ISO 28000']
+
+// ─── Required certifications from product form ────────────────────
+const requiredCertifications = computed(() => {
+  try {
+    const stored = localStorage.getItem('routeData')
+    if (stored) {
+      const data = JSON.parse(stored)
+      return data.certificates || []
+    }
+  } catch (_) {}
+  return []
+})
+
+const getMissingCertifications = (nodeCerts) => {
+  if (!Array.isArray(nodeCerts)) nodeCerts = []
+  return requiredCertifications.value.filter(c => !nodeCerts.includes(c))
+}
+
 const transportColors = {
   road:      { from: '#D97448', to: '#C46B2D' },
   air:       { from: '#D4A83A', to: '#C79A2B' },
@@ -477,6 +582,9 @@ const transportHexStyle = (transportType) => {
 }
 const nodeTypeLabel = (type) =>
   type === 'origin' ? 'Origin Node' : type === 'destination' ? 'Destination Node' : 'Intermediary Node'
+
+const validationStatusLabel = (status) =>
+  status === 'validated' ? '✓ Validated' : status === 'pending' ? '⏳ Pending Review' : '✗ Not Validated'
 
 // ─── Toolbar modes ────────────────────────────────────────────────
 const removingMode   = ref(false)
@@ -493,6 +601,8 @@ const openModal = (index) => {
   editingNodeIndex.value = index
   editingFormData.value  = JSON.parse(JSON.stringify(nodes.value[index]))
   if (!editingFormData.value.backups) editingFormData.value.backups = []
+  if (!editingFormData.value.certifications) editingFormData.value.certifications = []
+  if (!editingFormData.value.details.facilityType) editingFormData.value.details.facilityType = 'warehouse'
 }
 const closeModal      = () => { editingNodeIndex.value = null; editingFormData.value = null }
 const saveNodeDetails = () => {
@@ -524,7 +634,8 @@ const saveBackupDetails = () => {
 // ─── Node CRUD ────────────────────────────────────────────────────
 const addNode = () => nodes.value.splice(nodes.value.length - 1, 0, {
   id: Date.now(), type: 'intermediary',
-  details: { company: '', location: '', transportType: 'road' },
+  details: { company: '', location: '', transportType: 'road', facilityType: 'warehouse' },
+  certifications: [],
   backups: [], row: 0,
 })
 const deleteNode = (index) => { if (nodes.value[index].type === 'intermediary') nodes.value.splice(index, 1); removingMode.value = false }
@@ -622,7 +733,7 @@ const onHexMouseDown = (e, index) => {
 const handleHexClick = (e, index) => {
   if (dragJustEnded) { dragJustEnded = false; return }
   if (removingMode.value && nodes.value[index].type === 'intermediary') { deleteNode(index); return }
-  if (backupPickMode.value && nodes.value[index].type === 'intermediary') { addBackupToNode(index); backupPickMode.value = false }
+  if (backupPickMode.value && nodes.value[index].type === 'intermediary') { addBackupToNode(index); backupPickMode.value = false; return }
 }
 
 // Global handlers (attached to window for smooth tracking outside viewport)
@@ -724,7 +835,12 @@ onMounted(async () => {
             location:      n.location,
             company:       n.company,
             transportType: n.transport,
+            facilityType:  n.type || 'warehouse',
           },
+          certifications:    n.certificates || [],
+          temperatureControl: n.temperatureControl || {},
+          validationStatus:   n.validationStatus || 'pending',
+          fragile:            n.fragile || false,
           backups: [],
           row:     0,
         }
@@ -1046,6 +1162,22 @@ onUnmounted(() => {
 .remove-target      { filter: drop-shadow(0 4px 14px rgba(239,68,68,.45)); animation: pulse-red   0.8s infinite alternate; cursor: pointer !important; }
 .backup-pick-target { filter: drop-shadow(0 4px 14px rgba(31,111,84,.5));  animation: pulse-green 0.8s infinite alternate; cursor: pointer !important; }
 
+.hex { position: relative; width: 170px; height: 170px; clip-path: polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; user-select: none; }
+.hex-content { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+.hc-icon { font-size: 28px; line-height: 1; }
+.hc-loc  { font-size: 12px; font-weight: 600; word-break: break-word; text-align: center; max-width: 95%; }
+.hc-company { font-size: 9px; opacity: 0.85; word-break: break-word; text-align: center; max-width: 95%; }
+.remove-x { font-size: 44px; color: rgba(255,255,255,.9); font-weight: 300; line-height: 1; }
+.backup-pick-icon { font-size: 32px; }
+
+.cert-alert-badge { position: absolute; top: -6px; right: -6px; width: 28px; height: 28px; background: #ffc107; border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); cursor: help; z-index: 10; }
+.node-wrapper.has-missing-certs .cert-alert-badge { animation: pulse-warning 2s infinite; }
+
+@keyframes pulse-warning {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
 @keyframes pulse-red   { from { filter: drop-shadow(0 4px 8px rgba(239,68,68,.3)) } to { filter: drop-shadow(0 4px 22px rgba(239,68,68,.8)) } }
 @keyframes pulse-green { from { filter: drop-shadow(0 4px 8px rgba(31,111,84,.3)) } to { filter: drop-shadow(0 4px 22px rgba(31,111,84,.8)) } }
 
@@ -1185,4 +1317,44 @@ onUnmounted(() => {
 .btn-cancel:hover { background: #f8fafc; color: var(--text-main); }
 .btn-save { padding: 9px 22px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all var(--transition-fast); box-shadow: 0 4px 10px var(--primary-glow); font-family: inherit; }
 .btn-save:hover { background: var(--primary-light); transform: translateY(-1px); }
+
+/* ─── Certification / Compliance sections ─── */
+.form-divider { height: 1px; background: var(--border-color); margin: 16px 0 12px 0; }
+.section-label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+
+.certs-display { display: flex; flex-wrap: wrap; gap: 8px; }
+.cert-tag { display: inline-block; padding: 6px 12px; background: rgba(76, 175, 80, 0.12); border: 1px solid rgba(76, 175, 80, 0.3); color: #4caf50; border-radius: 6px; font-size: 12px; font-weight: 600; }
+
+.temp-display { padding: 10px 12px; background: rgba(33, 150, 243, 0.08); border: 1px solid rgba(33, 150, 243, 0.2); border-radius: 6px; }
+.temp-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.temp-min, .temp-max { font-size: 14px; font-weight: 700; color: #2196f3; }
+.temp-to { font-size: 12px; color: var(--text-muted); }
+
+.compliance-display { display: flex; flex-direction: column; gap: 8px; }
+.compliance-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: rgba(0,0,0,0.04); border-radius: 6px; }
+.compliance-label { font-size: 12px; color: var(--text-muted); font-weight: 600; min-width: 120px; }
+.compliance-value { font-size: 13px; font-weight: 600; }
+.status-validated { color: #4caf50; }
+.status-pending { color: #ffc107; }
+.status-fragile { color: #f44336; }
+
+/* ─── Facility Types ─── */
+.facility-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.f-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px; border: 1.5px solid var(--border-color); border-radius: 8px; background: white; cursor: pointer; font-size: 10px; color: var(--text-muted); font-family: inherit; transition: all var(--transition-fast); }
+.f-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-glow); }
+.f-btn.active { border-color: var(--primary); background: var(--primary-glow); color: var(--primary); font-weight: 600; }
+.f-btn span:first-child { font-size: 16px; }
+.f-label { display: block; width: 100%; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ─── Certification Selector ─── */
+.certifications-selector { display: flex; flex-direction: column; gap: 8px; padding: 10px; background: #f9fafb; border: 1px solid var(--border-color); border-radius: 8px; }
+.cert-checkbox { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 8px; border-radius: 6px; transition: all var(--transition-fast); }
+.cert-checkbox:hover { background: rgba(31, 122, 92, 0.08); }
+.cert-checkbox input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex-shrink: 0; }
+.cert-text { font-size: 13px; color: var(--text-main); user-select: none; }
+
+/* ─── Missing Certifications Alert ─── */
+.missing-certs-alert { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; margin-top: 8px; }
+.alert-icon { font-size: 14px; flex-shrink: 0; }
+.missing-certs-alert span:last-child { font-size: 12px; color: #856404; font-weight: 500; }
 </style>
