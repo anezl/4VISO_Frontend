@@ -12,7 +12,7 @@
           <label>Email</label>
           <div class="input-wrapper">
             <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-            <input type="email" v-model="email" placeholder="you@company.com" required />
+            <input type="email" v-model.trim="email" placeholder="you@company.com" required />
           </div>
         </div>
 
@@ -24,6 +24,10 @@
           </div>
         </div>
 
+        <p v-if="errorMessage" class="error-message" role="alert" aria-live="polite">
+          {{ errorMessage }}
+        </p>
+
         <div class="form-options">
           <label class="remember-me">
             <input type="checkbox" />
@@ -32,9 +36,9 @@
           <a href="#" class="forgot-link">Forgot password?</a>
         </div>
 
-        <button type="submit" class="submit-btn">
-          Sign In
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        <button type="submit" class="submit-btn" :disabled="isSubmitting">
+          {{ isSubmitting ? 'Signing in...' : 'Sign In' }}
+          <svg v-if="!isSubmitting" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         </button>
       </form>
 
@@ -52,10 +56,53 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const email = ref('')
 const password = ref('')
+const errorMessage = ref('')
+const isSubmitting = ref(false)
 
-const handleLogin = () => {
-  // Mock login: just redirect to dashboard
-  router.push('/')
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '')
+
+const handleLogin = async () => {
+  errorMessage.value = ''
+  isSubmitting.value = true
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: email.value,
+        password: password.value,
+      }),
+    })
+
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Login failed. Please check your credentials.')
+    }
+
+    if (!data.token) {
+      throw new Error('Login succeeded, but no authentication token was returned.')
+    }
+
+    localStorage.setItem('authToken', data.token)
+
+    if (data.user) {
+      localStorage.setItem('authUser', JSON.stringify(data.user))
+    }
+
+    await router.push({ name: 'Dashboard' })
+  } catch (error) {
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('authUser')
+    errorMessage.value = error instanceof Error
+      ? error.message
+      : 'Login failed. Please try again.'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -162,6 +209,17 @@ const handleLogin = () => {
   font-size: 14px;
 }
 
+.error-message {
+  margin: -4px 0 0;
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 .remember-me {
   display: flex;
   align-items: center;
@@ -207,6 +265,13 @@ const handleLogin = () => {
   background: var(--primary-light);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.submit-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+  transform: none;
+  box-shadow: none;
 }
 
 .auth-footer {
