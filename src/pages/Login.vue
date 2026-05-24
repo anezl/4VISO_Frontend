@@ -52,6 +52,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { api, clearAuthSession, setAuthSession } from '../services/api'
 
 const router = useRouter()
 const email = ref('')
@@ -59,44 +60,24 @@ const password = ref('')
 const errorMessage = ref('')
 const isSubmitting = ref(false)
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '')
-
 const handleLogin = async () => {
   errorMessage.value = ''
   isSubmitting.value = true
 
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: email.value,
-        password: password.value,
-      }),
+    const data = await api.post('/auth/login', {
+      email: email.value,
+      password: password.value,
     })
-
-    const data = await response.json().catch(() => ({}))
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Login failed. Please check your credentials.')
-    }
 
     if (!data.token) {
       throw new Error('Login succeeded, but no authentication token was returned.')
     }
 
-    localStorage.setItem('authToken', data.token)
-
-    if (data.user) {
-      localStorage.setItem('authUser', JSON.stringify(data.user))
-    }
-
+    setAuthSession(data.token, data.user)
     await router.push({ name: 'Dashboard' })
   } catch (error) {
-    localStorage.removeItem('authToken')
-    localStorage.removeItem('authUser')
+    clearAuthSession()
     errorMessage.value = error instanceof Error
       ? error.message
       : 'Login failed. Please try again.'

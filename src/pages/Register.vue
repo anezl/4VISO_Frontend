@@ -7,12 +7,12 @@
         <p>Join us and start assessing supply chain risks</p>
       </div>
 
-      <form @submit.prevent="handleRegister" class="auth-form">
+      <form @submit.prevent="handleRegister" class="auth-form" novalidate>
         <div class="input-group">
           <label>Full Name</label>
           <div class="input-wrapper">
             <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <input type="text" v-model="name" placeholder="John Doe" required />
+            <input type="text" v-model.trim="name" placeholder="John Doe" required />
           </div>
         </div>
 
@@ -20,7 +20,7 @@
           <label>Email</label>
           <div class="input-wrapper">
             <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-            <input type="email" v-model="email" placeholder="you@company.com" required />
+            <input type="email" v-model.trim="email" placeholder="you@company.com" required />
           </div>
         </div>
 
@@ -32,9 +32,16 @@
           </div>
         </div>
 
-        <button type="submit" class="submit-btn">
-          Sign Up
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        <div v-if="formErrors.length || errorMessage" class="error-message" role="alert" aria-live="polite">
+          <p v-if="errorMessage">{{ errorMessage }}</p>
+          <ul v-if="formErrors.length">
+            <li v-for="error in formErrors" :key="error">{{ error }}</li>
+          </ul>
+        </div>
+
+        <button type="submit" class="submit-btn" :disabled="isSubmitting">
+          {{ isSubmitting ? 'Creating account...' : 'Sign Up' }}
+          <svg v-if="!isSubmitting" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         </button>
       </form>
 
@@ -48,15 +55,72 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { api, clearAuthSession, setAuthSession } from '../services/api'
 
 const router = useRouter()
 const name = ref('')
 const email = ref('')
 const password = ref('')
+const errorMessage = ref('')
+const formErrors = ref([])
+const isSubmitting = ref(false)
 
-const handleRegister = () => {
-  // Mock registration: just redirect to dashboard
-  router.push('/')
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+const validateForm = () => {
+  const errors = []
+
+  if (!name.value) {
+    errors.push('Full name is required.')
+  }
+
+  if (!email.value) {
+    errors.push('Email is required.')
+  } else if (!emailPattern.test(email.value)) {
+    errors.push('Enter a valid email address.')
+  }
+
+  if (!password.value) {
+    errors.push('Password is required.')
+  } else if (password.value.length < 8) {
+    errors.push('Password must be at least 8 characters long.')
+  }
+
+  formErrors.value = errors
+
+  return errors.length === 0
+}
+
+const handleRegister = async () => {
+  errorMessage.value = ''
+
+  if (!validateForm()) {
+    return
+  }
+
+  isSubmitting.value = true
+
+  try {
+    const data = await api.post('/auth/register', {
+      name: name.value,
+      email: email.value,
+      password: password.value,
+    })
+
+    if (!data.token) {
+      throw new Error('Registration succeeded, but no authentication token was returned.')
+    }
+
+    setAuthSession(data.token, data.user)
+    await router.push({ name: 'Dashboard' })
+  } catch (error) {
+    clearAuthSession()
+    errorMessage.value = error instanceof Error
+      ? error.message
+      : 'Registration failed. Please try again.'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -156,6 +220,26 @@ const handleRegister = () => {
   box-shadow: 0 0 0 4px var(--primary-glow);
 }
 
+.error-message {
+  margin: -4px 0 0;
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.error-message p {
+  margin: 0;
+}
+
+.error-message ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
 .submit-btn {
   background: var(--primary);
   color: white;
@@ -177,6 +261,13 @@ const handleRegister = () => {
   background: var(--primary-light);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.submit-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+  transform: none;
+  box-shadow: none;
 }
 
 .auth-footer {
