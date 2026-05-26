@@ -40,7 +40,7 @@
     <div v-else class="lanes-list">
       <article
         v-for="lane in displayedLanes"
-        :key="lane.id"
+        :key="lane._id"
         class="lane-card"
       >
         <div class="card-stripe" :class="productClass(lane.productType)"></div>
@@ -50,12 +50,12 @@
           <!-- ROW 1: Route cities + product pill + open button -->
           <div class="row-top">
             <div class="route-info">
-              <span class="city">{{ lane.origin.city }}</span>
+              <span class="city">{{ lane.origin?.city || lane.origin || '—' }}</span>
               <svg class="arr-ico" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-              <span class="city">{{ lane.destination.city }}</span>
-              <span class="product-pill" :class="productClass(lane.productType)">{{ lane.productType }}</span>
+              <span class="city">{{ lane.destination?.city || lane.destination || '—' }}</span>
+              <span class="product-pill" :class="productClass(lane.cargoProfile?.productType)">{{ lane.cargoProfile?.productType || 'General' }}</span>
             </div>
-            <button class="open-btn" @click="$router.push({ path: '/canvas', query: { laneId: lane.id } })">
+            <button class="open-btn" @click="$router.push({ path: '/canvas', query: { laneId: lane._id } })">
               Open Lane
               <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
             </button>
@@ -63,9 +63,9 @@
 
           <!-- ROW 2: Meta -->
           <div class="row-meta">
-            <span class="meta-companies">{{ lane.origin.company }} → {{ lane.destination.company }}</span>
+            <span class="meta-companies">{{ lane.origin?.company || '' }}</span>
             <span class="dot-sep">·</span>
-            <span class="meta-text">{{ lane.origin.country }} → {{ lane.destination.country }}</span>
+            <span class="meta-text">{{ lane.cargoProfile?.productType || '' }}</span>
             <span class="dot-sep">·</span>
             <span class="meta-text">{{ lane.nodes.length }} nodes</span>
             <span class="dot-sep">·</span>
@@ -74,13 +74,13 @@
 
           <!-- ROW 3: Transport track -->
           <div class="route-track">
-            <template v-for="(node, idx) in laneNodes[lane.id]" :key="node.id">
+            <template v-for="(node, idx) in laneNodes[lane._id]" :key="node.id">
               <div
                 class="track-stop"
                 :class="[
                   node.isEllipsis ? 'is-ellipsis' : node.type,
                   { 'is-origin': !node.isEllipsis && idx === 0 },
-                  { 'is-dest':   !node.isEllipsis && idx === laneNodes[lane.id].length - 1 },
+                  { 'is-dest':   !node.isEllipsis && idx === laneNodes[lane._id].length - 1 },
                 ]"
                 :title="!node.isEllipsis ? (node.location + (node.company ? ' · ' + node.company : '')) : ''"
               >
@@ -88,7 +88,7 @@
                 <span class="stop-lbl">{{ node.isEllipsis ? '+' + node.count : node.location }}</span>
               </div>
               <div
-                v-if="idx < laneNodes[lane.id].length - 1"
+                v-if="idx < laneNodes[lane._id].length - 1"
                 class="track-line"
                 :class="(!node.isEllipsis && node.transport === 'air') ? 'seg-air' : 'seg-ground'"
               ></div>
@@ -108,48 +108,78 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import lanesData from '@/data/lanes.json'
+import { api } from '@/services/api'
 
 const router      = useRouter()
-const allLanes    = ref(lanesData)
+const allLanes    = ref([])
 const searchQuery = ref('')
+const isLoading   = ref(true)
+const error       = ref(null)
+
+onMounted(async () => {
+  try {
+    const data = await api.get('/lanes')
+    allLanes.value = Array.isArray(data) ? data : []
+  } catch (err) {
+    error.value = 'Failed to load lanes.'
+  } finally {
+    isLoading.value = false
+  }
+})
 
 const displayedLanes = computed(() => {
   if (!searchQuery.value.trim()) return allLanes.value
   const q = searchQuery.value.trim().toLowerCase()
-  return allLanes.value.filter(l =>
-    l.origin.city.toLowerCase().includes(q) ||
-    l.destination.city.toLowerCase().includes(q)
-  )
+  return allLanes.value.filter(l => {
+    const origin      = typeof l.origin      === 'string' ? l.origin      : l.origin?.city      || ''
+    const destination = typeof l.destination === 'string' ? l.destination : l.destination?.city || ''
+    return origin.toLowerCase().includes(q) || destination.toLowerCase().includes(q)
+  })
 })
 
 const laneNodes = computed(() => {
   const result = {}
   allLanes.value.forEach(lane => {
-    const nodes = lane.nodes
-    if (nodes.length <= 7) {
-      result[lane.id] = nodes.map(n => ({ ...n, isEllipsis: false }))
-    } else {
-      result[lane.id] = [
-        ...nodes.slice(0, 4).map(n => ({ ...n, isEllipsis: false })),
-        { id: `ellipsis-${lane.id}`, isEllipsis: true, count: nodes.length - 6 },
-        ...nodes.slice(-2).map(n => ({ ...n, isEllipsis: false })),
-      ]
-    }
+    const rawNodes = Array.isArray(lane.nodes) ? lane.nodes : []
+    const originLabel = typeof lane.origin === 'string'
+      ? lane.origin : lane.origin?.city || 'Origin'
+    const destLabel = typeof lane.destination === 'string'
+      ? lane.destination : lane.destination?.city || 'Destination'
+
+    const allNodes = [
+      { id: `${lane._id}-origin`, location: originLabel, type: 'warehouse', transport: null, isEllipsis: false },
+      ...rawNodes.map((n, i) => ({
+        id: n._id || n.id || `node-${i}`,
+        location: n.location || '',
+        company:  n.company  || '',
+        type:     n.type     || 'warehouse',
+        transport: n.transport || 'road',
+        isEllipsis: false,
+      })),
+      { id: `${lane._id}-dest`, location: destLabel, type: 'warehouse', transport: null, isEllipsis: false },
+    ]
+
+    result[lane._id] = allNodes.length <= 7
+      ? allNodes
+      : [
+          ...allNodes.slice(0, 4),
+          { id: `ellipsis-${lane._id}`, isEllipsis: true, count: allNodes.length - 6 },
+          ...allNodes.slice(-2),
+        ]
   })
   return result
 })
 
 const productClass = (type) => {
-  const map = {
-    'Pharmaceutical':  'pharma',
-    'Vaccines':        'vaccines',
-    'Biological':      'biological',
-    'Medical Devices': 'medical',
-  }
-  return map[type] ?? 'pharma'
+  if (!type) return 'pharma'
+  const t = type.toLowerCase()
+  if (t.includes('pharma'))  return 'pharma'
+  if (t.includes('vaccine')) return 'vaccines'
+  if (t.includes('bio'))     return 'biological'
+  if (t.includes('medical')) return 'medical'
+  return 'pharma'
 }
 
 const formatDate = (dateStr) =>
