@@ -415,7 +415,7 @@
 <script setup>
 import { ref, computed, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import lanesData from '@/data/lanes.json'
+import { api } from '@/services/api'
 
 const router = useRouter()
 const route  = useRoute()
@@ -609,6 +609,7 @@ const saveNodeDetails = () => {
   if (editingNodeIndex.value !== null && editingFormData.value)
     nodes.value[editingNodeIndex.value] = { ...editingFormData.value }
   closeModal()
+  saveLane()
 }
 
 // ─── Backup modal ─────────────────────────────────────────────────
@@ -815,47 +816,82 @@ const onMouseUp = (e) => {
   isPanning.value    = false
 }
 
+
+const saveLane = async () => {
+  const laneId = route.query.laneId || localStorage.getItem('currentLaneId')
+  if (!laneId) return
+  try {
+    await api.put(`/lanes/${laneId}`, {
+      nodes: nodes.value.map(n => ({
+        location:  n.details.location,
+        company:   n.details.company,
+        transport: n.details.transportType,
+        type:      n.details.facilityType,
+        certificates: n.certifications || [],
+      }))
+    })
+  } catch (err) {
+    console.error('Failed to save lane:', err)
+  }
+}
+
+
 // ─── Mount / Unmount ──────────────────────────────────────────────
 onMounted(async () => {
   await nextTick()
   centerCanvas()
 
-  const laneId = route.query.laneId
+  const laneId = route.query.laneId || localStorage.getItem('currentLaneId')
+
   if (laneId) {
-    const lane = lanesData.find(l => l.id === laneId)
-    if (lane) {
-      nodes.value = lane.nodes.map((n, i) => {
-        const isFirst = i === 0
-        const isLast  = i === lane.nodes.length - 1
-        const type    = isFirst ? 'origin' : isLast ? 'destination' : 'intermediary'
-        return {
-          id:      n.id,
-          type,
-          details: {
-            location:      n.location,
-            company:       n.company,
-            transportType: n.transport,
-            facilityType:  n.type || 'warehouse',
-          },
-          certifications:    n.certificates || [],
-          temperatureControl: n.temperatureControl || {},
-          validationStatus:   n.validationStatus || 'pending',
-          fragile:            n.fragile || false,
-          backups: [],
-          row:     0,
-        }
-      })
+    try {
+      const lane = await api.get(`/lanes/${laneId}`)
+      if (lane && lane.nodes && lane.nodes.length > 0) {
+        nodes.value = lane.nodes.map((n, i) => {
+          const isFirst = i === 0
+          const isLast  = i === lane.nodes.length - 1
+          const type    = isFirst ? 'origin' : isLast ? 'destination' : 'intermediary'
+          return {
+            id:      n.id || Date.now() + i,
+            type,
+            details: {
+              location:      n.location,
+              company:       n.company,
+              transportType: n.transport,
+              facilityType:  n.type || 'warehouse',
+            },
+            certifications:     n.certificates || [],
+            temperatureControl: n.temperatureControl || {},
+            validationStatus:   n.validationStatus || 'pending',
+            fragile:            n.fragile || false,
+            backups: [],
+            row:     0,
+          }
+        })
+      }
+    } catch (err) {
+      console.error('Failed to load lane:', err)
     }
-  } else {
+} else {
     const stored = localStorage.getItem('routeData')
     if (stored) {
       try {
         const data = JSON.parse(stored)
-        if (data.origin)      nodes.value[0].details.location                          = data.origin
-        if (data.destination) nodes.value[nodes.value.length - 1].details.location     = data.destination
+        if (data.origin)      nodes.value[0].details.location                      = data.origin
+        if (data.destination) nodes.value[nodes.value.length - 1].details.location = data.destination
       } catch (_) {}
     }
   }
+
+  // Always apply routeData origin/destination on top
+  try {
+    const stored = localStorage.getItem('routeData')
+    if (stored) {
+      const data = JSON.parse(stored)
+      if (data.origin)      nodes.value[0].details.location                      = data.origin
+      if (data.destination) nodes.value[nodes.value.length - 1].details.location = data.destination
+    }
+  } catch (_) {}
 
   viewportRef.value.addEventListener('wheel', onWheel, { passive: false })
   window.addEventListener('mousemove', onMouseMove)

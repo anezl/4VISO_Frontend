@@ -206,6 +206,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { api } from '@/services/api'
 
 const router = useRouter()
 const route  = useRoute()
@@ -243,10 +244,11 @@ const errors = computed(() => ({
   certificates: selectedCertificates.value.length === 0,
 }))
 
-const goToCanvas = () => {
+const goToCanvas = async () => {
   showErrors.value = true
   if (errors.value.productType || errors.value.packageSpecs || errors.value.certificates) return
-  localStorage.setItem('routeData', JSON.stringify({
+
+  const routeData = {
     origin:       routeOrigin.value,
     destination:  routeDestination.value,
     productType:  productType.value,
@@ -255,7 +257,32 @@ const goToCanvas = () => {
     tempMax:      tempMax.value,
     isFragile:    isFragile.value,
     certificates: selectedCertificates.value,
-  }))
+  }
+
+  // Save to localStorage for RouteCanvas to read
+  localStorage.setItem('routeData', JSON.stringify(routeData))
+
+  try {
+    // Also save to database
+    const lane = await api.post('/lanes', {
+      origin:       routeOrigin.value,
+      destination:  routeDestination.value,
+      cargoProfile: {
+        productType:     productType.value,
+        weight:          pkg.weight,
+        dimensions:      `${pkg.length}x${pkg.width}x${pkg.height}cm`,
+        tempRange:       `${tempMin.value}-${tempMax.value}C`,
+        specialHandling: isFragile.value ? 'Fragile' : 'None',
+      },
+      certificates: selectedCertificates.value,
+      status: 'draft',
+    })
+    // Store the new lane ID so RouteCanvas can update it later
+    localStorage.setItem('currentLaneId', lane._id)
+  } catch (err) {
+    console.error('Failed to save lane to API:', err)
+  }
+
   router.push('/canvas')
 }
 </script>
