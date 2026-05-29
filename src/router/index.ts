@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { getAuthToken } from '../services/api'
 
 import Dashboard from '../pages/Dashboard.vue'
 import CreateRoute from '../pages/CreateRoute.vue'
@@ -15,21 +16,25 @@ const routes = [
     path: '/',
     name: 'Dashboard',
     component: Dashboard,
+    meta: { requiresAuth: true },
   },
   {
     path: '/create',
     name: 'CreateRoute',
     component: CreateRoute,
+    meta: { requiresAuth: true },
   },
   {
     path: '/canvas',
     name: 'RouteCanvas',
     component: RouteCanvas,
+    meta: { requiresAuth: true },
   },
   {
     path: '/lanes',
     name: 'Lanes',
     component: Lanes,
+    meta: { requiresAuth: true },
   },
   {
     path: '/login',
@@ -47,22 +52,31 @@ const routes = [
     path: '/profile',
     name: 'Profile',
     component: Profile,
+    meta: { requiresAuth: true },
   },
   {
     path: '/settings',
     name: 'Settings',
     component: Settings,
+    meta: { requiresAuth: true },
   },
   {
     path: '/notifications',
     name: 'Notifications',
     component: Notifications,
+    meta: { requiresAuth: true },
   },
 ]
 
 const router = createRouter({
   history: createWebHistory(),
   routes,
+})
+
+router.beforeEach((to) => {
+  if (to.meta.requiresAuth && !getAuthToken()) {
+    return { name: 'Login' }
+  }
 })
 
 export default router
