@@ -20,6 +20,42 @@
       </div>
     </header>
 
+    <!-- ── FILTER BAR ── -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="filter-label">Status</span>
+        <button
+          v-for="s in statusOptions" :key="s.value"
+          class="filter-pill"
+          :class="[s.cls, { active: statusFilter === s.value }]"
+          @click="statusFilter = statusFilter === s.value ? '' : s.value"
+        >{{ s.label }}</button>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Risk</span>
+        <button
+          v-for="r in riskOptions" :key="r.value"
+          class="filter-pill"
+          :class="[r.cls, { active: riskFilter === r.value }]"
+          @click="riskFilter = riskFilter === r.value ? '' : r.value"
+        >{{ r.label }}</button>
+      </div>
+    </div>
+
+    <!-- ── LOADING STATE ── -->
+    <div v-if="isLoading" class="empty-state">
+      <p class="empty-title">Loading lanes…</p>
+    </div>
+
+    <!-- ── ERROR STATE ── -->
+    <div v-else-if="error" class="empty-state">
+      <p class="empty-title">Failed to load lanes</p>
+      <p class="empty-sub">{{ error }}</p>
+      <button class="btn-empty" @click="loadLanes">Retry</button>
+    </div>
+
+    <template v-else>
+
     <!-- ── SEARCH CONTEXT ── -->
     <div v-if="searchQuery.trim()" class="search-ctx">
       {{ displayedLanes.length }} result{{ displayedLanes.length !== 1 ? 's' : '' }} for
@@ -43,7 +79,7 @@
         :key="lane._id"
         class="lane-card"
       >
-        <div class="card-stripe" :class="productClass(lane.productType)"></div>
+        <div class="card-stripe" :class="productClass(lane.cargoProfile?.productType)"></div>
 
         <div class="card-inner">
 
@@ -104,30 +140,41 @@
       </article>
     </div>
 
+    </template>
+
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch, onMounted } from 'vue'
 import { api } from '@/services/api'
 
-const router      = useRouter()
-const allLanes    = ref([])
-const searchQuery = ref('')
-const isLoading   = ref(true)
-const error       = ref(null)
+const allLanes     = ref([])
+const searchQuery  = ref('')
+const statusFilter = ref('')
+const riskFilter   = ref('')
+const isLoading    = ref(true)
+const error        = ref(null)
 
-onMounted(async () => {
+const loadLanes = async () => {
+  isLoading.value = true
+  error.value = null
   try {
-    const data = await api.get('/lanes')
+    const params = new URLSearchParams()
+    if (statusFilter.value) params.set('status', statusFilter.value)
+    if (riskFilter.value)   params.set('riskLevel', riskFilter.value)
+    const query = params.toString()
+    const data = await api.get(`/lanes${query ? '?' + query : ''}`)
     allLanes.value = Array.isArray(data) ? data : []
   } catch (err) {
     error.value = 'Failed to load lanes.'
   } finally {
     isLoading.value = false
   }
-})
+}
+
+watch([statusFilter, riskFilter], loadLanes)
+onMounted(loadLanes)
 
 const displayedLanes = computed(() => {
   if (!searchQuery.value.trim()) return allLanes.value
@@ -184,6 +231,19 @@ const productClass = (type) => {
 
 const formatDate = (dateStr) =>
   new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+
+const statusOptions = [
+  { value: 'draft',    label: 'Draft',    cls: 'pill-gray'  },
+  { value: 'pending',  label: 'Pending',  cls: 'pill-amber' },
+  { value: 'live',     label: 'Live',     cls: 'pill-green' },
+  { value: 'archived', label: 'Archived', cls: 'pill-dim'   },
+]
+
+const riskOptions = [
+  { value: 'low',    label: 'Low',    cls: 'pill-green' },
+  { value: 'medium', label: 'Medium', cls: 'pill-amber' },
+  { value: 'high',   label: 'High',   cls: 'pill-red'   },
+]
 </script>
 
 <style scoped>
@@ -194,6 +254,59 @@ const formatDate = (dateStr) =>
   min-height: 100%;
   background: #f7f8fa;
 }
+
+/* ─── Filter bar ────────────────────────────────────────────── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 28px;
+  height: 44px;
+  background: #ffffff;
+  border-bottom: 1px solid #eaecf0;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-right: 3px;
+  flex-shrink: 0;
+}
+
+.filter-pill {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: background .13s, border-color .13s, color .13s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.filter-pill:hover { background: #f1f5f9; border-color: #cbd5e1; }
+
+.filter-pill.pill-green.active  { background: #dcfce7; border-color: #86efac; color: #15803d; }
+.filter-pill.pill-amber.active  { background: #fef9c3; border-color: #fde047; color: #854d0e; }
+.filter-pill.pill-red.active    { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+.filter-pill.pill-gray.active   { background: #f1f5f9; border-color: #94a3b8; color: #334155; }
+.filter-pill.pill-dim.active    { background: #e2e8f0; border-color: #94a3b8; color: #475569; }
 
 /* ─── Sticky header ─────────────────────────────────────────── */
 .page-header {

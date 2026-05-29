@@ -190,10 +190,11 @@
 
       <!-- STICKY FOOTER -->
       <div class="form-footer">
+        <p v-if="submitError" class="submit-error">{{ submitError }}</p>
         <div class="actions">
           <button class="btn-ghost" @click="$router.push('/')">Cancel</button>
-          <button class="btn-primary" @click="goToCanvas">
-            Continue to Route Builder →
+          <button class="btn-primary" @click="goToCanvas" :disabled="isSubmitting">
+            {{ isSubmitting ? 'Saving…' : 'Continue to Route Builder →' }}
           </button>
         </div>
       </div>
@@ -236,7 +237,9 @@ const isFragile = ref(false)
 const selectedCertificates = ref([])
 const certificatesList = ['GDP', 'IATA', 'ISO 9001', 'ISO 13485', 'ISO 28000']
 
-const showErrors = ref(false)
+const showErrors  = ref(false)
+const isSubmitting = ref(false)
+const submitError  = ref('')
 
 const errors = computed(() => ({
   productType:  !productType.value,
@@ -245,31 +248,18 @@ const errors = computed(() => ({
 }))
 
 const goToCanvas = async () => {
+  submitError.value = ''
   showErrors.value = true
   if (errors.value.productType || errors.value.packageSpecs || errors.value.certificates) return
 
-  const routeData = {
-    origin:       routeOrigin.value,
-    destination:  routeDestination.value,
-    productType:  productType.value,
-    package:      { ...pkg },
-    tempMin:      tempMin.value,
-    tempMax:      tempMax.value,
-    isFragile:    isFragile.value,
-    certificates: selectedCertificates.value,
-  }
-
-  // Save to localStorage for RouteCanvas to read
-  localStorage.setItem('routeData', JSON.stringify(routeData))
-
+  isSubmitting.value = true
   try {
-    // Also save to database
     const lane = await api.post('/lanes', {
       origin:       routeOrigin.value,
       destination:  routeDestination.value,
       cargoProfile: {
         productType:     productType.value,
-        weight:          pkg.weight,
+        weight:          Number(pkg.weight),
         dimensions:      `${pkg.length}x${pkg.width}x${pkg.height}cm`,
         tempRange:       `${tempMin.value}-${tempMax.value}C`,
         specialHandling: isFragile.value ? 'Fragile' : 'None',
@@ -277,13 +267,20 @@ const goToCanvas = async () => {
       certificates: selectedCertificates.value,
       status: 'draft',
     })
-    // Store the new lane ID so RouteCanvas can update it later
-    localStorage.setItem('currentLaneId', lane._id)
-  } catch (err) {
-    console.error('Failed to save lane to API:', err)
-  }
 
-  router.push('/canvas')
+    // Pass origin/destination to canvas via localStorage (for display only)
+    localStorage.setItem('routeData', JSON.stringify({
+      origin:       routeOrigin.value,
+      destination:  routeDestination.value,
+      certificates: selectedCertificates.value,
+    }))
+
+    router.push({ name: 'RouteCanvas', query: { laneId: lane._id } })
+  } catch (err) {
+    submitError.value = err instanceof Error ? err.message : 'Failed to save lane. Please try again.'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -446,6 +443,16 @@ const goToCanvas = async () => {
   background: var(--bg-color);
   padding: 10px 56px;
   box-shadow: 0 -4px 16px rgba(0,0,0,0.05);
+}
+
+.submit-error {
+  font-size: 13px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
 }
 
 /* ── Cards ── */
