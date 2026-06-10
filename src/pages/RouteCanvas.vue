@@ -95,6 +95,7 @@
           <div class="banner-mid">
             <div class="banner-line"></div>
             <span class="banner-stops">{{ intermediaryNodes.length }} stop{{ intermediaryNodes.length !== 1 ? 's' : '' }}</span>
+            <span v-if="currentLane?.riskLevel" class="risk-badge" :class="'risk-' + currentLane.riskLevel">{{ currentLane.riskLevel }} risk</span>
             <div class="banner-line"></div>
             <span class="banner-arrow">→</span>
           </div>
@@ -850,8 +851,9 @@ const onMouseUp = (e) => {
 
 
 // ─── Save state ───────────────────────────────────────────────────
-const saveStatus = ref('idle') // 'idle' | 'saving' | 'saved' | 'error'
-const loadError  = ref('')
+const saveStatus   = ref('idle') // 'idle' | 'saving' | 'saved' | 'error'
+const loadError    = ref('')
+const currentLane  = ref(null)
 let saveTimer = null
 
 const saveLane = async () => {
@@ -887,6 +889,7 @@ onMounted(async () => {
   if (laneId) {
     try {
       const lane = await api.get(`/lanes/${laneId}`)
+      currentLane.value = lane
 
       if (lane.nodes && lane.nodes.length > 0) {
         nodes.value = lane.nodes.map((n, i) => {
@@ -1205,6 +1208,10 @@ onUnmounted(() => {
 .banner-line  { flex: 1; height: 1px; background: #E8EDF2; }
 .banner-stops { font-size: 11px; color: var(--text-muted); white-space: nowrap; font-weight: 500; letter-spacing: 0.03em; }
 .banner-arrow { font-size: 16px; color: #1F7A5C; }
+.risk-badge { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; }
+.risk-badge.risk-low    { background: #dcfce7; color: #15803d; }
+.risk-badge.risk-medium { background: #fef9c3; color: #854d0e; }
+.risk-badge.risk-high   { background: #fee2e2; color: #991b1b; }
 
 /* ── Canvas viewport ── */
 .canvas-viewport {

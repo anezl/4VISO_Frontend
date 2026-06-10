@@ -90,6 +90,7 @@
               <svg class="arr-ico" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
               <span class="city">{{ lane.destination?.city || lane.destination || '—' }}</span>
               <span class="product-pill" :class="productClass(lane.cargoProfile?.productType)">{{ lane.cargoProfile?.productType || 'General' }}</span>
+              <span v-if="lane.riskLevel" class="risk-badge" :class="'risk-' + lane.riskLevel">{{ lane.riskLevel }}</span>
             </div>
             <button class="open-btn" @click="$router.push({ path: '/canvas', query: { laneId: lane._id } })">
               Open Lane
@@ -585,6 +586,23 @@ const riskOptions = [
 .product-pill.vaccines   { background: #f3e8ff; color: #7c3aed; }
 .product-pill.biological { background: #dbeafe; color: #1d4ed8; }
 .product-pill.medical    { background: #fff7ed; color: #c2410c; }
+
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 19px;
+  padding: 0 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.risk-badge.risk-low    { background: #dcfce7; color: #15803d; }
+.risk-badge.risk-medium { background: #fef9c3; color: #854d0e; }
+.risk-badge.risk-high   { background: #fee2e2; color: #991b1b; }
 
 .open-btn {
   display: inline-flex;

@@ -261,7 +261,7 @@ const goToCanvas = async () => {
         productType:     productType.value,
         weight:          Number(pkg.weight),
         dimensions:      `${pkg.length}x${pkg.width}x${pkg.height}cm`,
-        tempRange:       `${tempMin.value}-${tempMax.value}C`,
+        tempRange:       `${tempMin.value}–${tempMax.value}°C`,
         specialHandling: isFragile.value ? 'Fragile' : 'None',
       },
       certificates: selectedCertificates.value,

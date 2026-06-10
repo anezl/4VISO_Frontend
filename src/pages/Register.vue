@@ -52,27 +52,31 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, clearAuthSession, setAuthSession } from '../services/api'
+import { api, clearAuthSession, setAuthSession, type AuthUser } from '../services/api'
+
+interface RegisterResponse {
+  message: string
+  token: string
+  user: AuthUser
+}
 
 const router = useRouter()
 const name = ref('')
 const email = ref('')
 const password = ref('')
 const errorMessage = ref('')
-const formErrors = ref([])
+const formErrors = ref<string[]>([])
 const isSubmitting = ref(false)
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const validateForm = () => {
-  const errors = []
+const validateForm = (): boolean => {
+  const errors: string[] = []
 
-  if (!name.value) {
-    errors.push('Full name is required.')
-  }
+  if (!name.value) errors.push('Full name is required.')
 
   if (!email.value) {
     errors.push('Email is required.')
@@ -87,30 +91,20 @@ const validateForm = () => {
   }
 
   formErrors.value = errors
-
   return errors.length === 0
 }
 
 const handleRegister = async () => {
   errorMessage.value = ''
-
-  if (!validateForm()) {
-    return
-  }
+  if (!validateForm()) return
 
   isSubmitting.value = true
-
   try {
-    const data = await api.post('/auth/register', {
+    const data = await api.post<RegisterResponse>('/auth/register', {
       name: name.value,
       email: email.value,
       password: password.value,
     })
-
-    if (!data.token) {
-      throw new Error('Registration succeeded, but no authentication token was returned.')
-    }
-
     setAuthSession(data.token, data.user)
     await router.push({ name: 'Dashboard' })
   } catch (error) {
