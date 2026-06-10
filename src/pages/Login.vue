@@ -49,10 +49,16 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, clearAuthSession, setAuthSession } from '../services/api'
+import { api, clearAuthSession, setAuthSession, type AuthUser } from '../services/api'
+
+interface LoginResponse {
+  message: string
+  token: string
+  user: AuthUser
+}
 
 const router = useRouter()
 const email = ref('')
@@ -65,14 +71,10 @@ const handleLogin = async () => {
   isSubmitting.value = true
 
   try {
-    const data = await api.post('/auth/login', {
+    const data = await api.post<LoginResponse>('/auth/login', {
       email: email.value,
       password: password.value,
     })
-
-    if (!data.token) {
-      throw new Error('Login succeeded, but no authentication token was returned.')
-    }
 
     setAuthSession(data.token, data.user)
     await router.push({ name: 'Dashboard' })
