@@ -869,6 +869,11 @@ const saveLane = async () => {
         transport:    n.details.transportType,
         type:         n.details.facilityType,
         certificates: n.certifications || [],
+        backups:      (n.backups || []).map(b => ({
+          location:      b.location      || '',
+          company:       b.company       || '',
+          transportType: b.transportType || 'road',
+        })),
       }))
     })
     saveStatus.value = 'saved'
@@ -906,8 +911,12 @@ onMounted(async () => {
               facilityType:  n.type      || 'warehouse',
             },
             certifications: n.certificates || [],
-            backups: [],
-            row:     0,
+            backups: (n.backups || []).map(b => ({
+              location:      b.location      || '',
+              company:       b.company       || '',
+              transportType: b.transportType || 'road',
+            })),
+            row: 0,
           }
         })
       }
