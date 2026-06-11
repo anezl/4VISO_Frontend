@@ -255,8 +255,8 @@ const goToCanvas = async () => {
   isSubmitting.value = true
   try {
     const lane = await api.post('/lanes', {
-      origin:       routeOrigin.value,
-      destination:  routeDestination.value,
+      origin:       { city: routeOrigin.value },
+      destination:  { city: routeDestination.value },
       cargoProfile: {
         productType:     productType.value,
         weight:          Number(pkg.weight),

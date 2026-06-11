@@ -912,11 +912,13 @@ onMounted(async () => {
         })
       }
 
-      // Apply origin/destination strings from lane document if nodes are empty or missing location
-      if (lane.origin && !nodes.value[0].details.location)
-        nodes.value[0].details.location = lane.origin
-      if (lane.destination && !nodes.value[nodes.value.length - 1].details.location)
-        nodes.value[nodes.value.length - 1].details.location = lane.destination
+      // Apply origin/destination from lane document if nodes are empty or missing location
+      const originCity = lane.origin?.city || ''
+      const destCity   = lane.destination?.city || ''
+      if (originCity && !nodes.value[0].details.location)
+        nodes.value[0].details.location = originCity
+      if (destCity && !nodes.value[nodes.value.length - 1].details.location)
+        nodes.value[nodes.value.length - 1].details.location = destCity
 
     } catch (err) {
       loadError.value = 'Failed to load lane. It may have been deleted or you don\'t have access.'
