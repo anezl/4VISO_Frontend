@@ -53,13 +53,33 @@
                 </div>
               </div>
               <div class="inline-row">
-                <div class="fg">
+                <div class="fg city-ac-wrap">
                   <label>Origin</label>
-                  <input type="text" v-model="routeOrigin" placeholder="City, Country" class="inp" />
+                  <input type="text" v-model="routeOrigin" placeholder="e.g. Amsterdam, Netherlands"
+                    class="inp" autocomplete="off"
+                    @input="onOriginInput" @focus="onOriginFocus" @blur="onOriginBlur" />
+                  <div class="city-drop" v-if="originSugs.length">
+                    <div v-for="c in originSugs" :key="c.city + c.code" class="city-item"
+                      @mousedown.prevent="selectOrigin(c)">
+                      <span class="ci-city">{{ c.city }}</span>
+                      <span class="ci-meta">{{ c.country }} · {{ c.code }}</span>
+                      <span class="ci-region">{{ c.region }}</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="fg">
+                <div class="fg city-ac-wrap">
                   <label>Destination</label>
-                  <input type="text" v-model="routeDestination" placeholder="City, Country" class="inp" />
+                  <input type="text" v-model="routeDestination" placeholder="e.g. Madrid, Spain"
+                    class="inp" autocomplete="off"
+                    @input="onDestInput" @focus="onDestFocus" @blur="onDestBlur" />
+                  <div class="city-drop" v-if="destSugs.length">
+                    <div v-for="c in destSugs" :key="c.city + c.code" class="city-item"
+                      @mousedown.prevent="selectDest(c)">
+                      <span class="ci-city">{{ c.city }}</span>
+                      <span class="ci-meta">{{ c.country }} · {{ c.code }}</span>
+                      <span class="ci-region">{{ c.region }}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </section>
@@ -130,15 +150,15 @@
                     <div class="card-hint">Temperature range &amp; fragility</div>
                   </div>
                 </div>
-                <div class="inline-row">
-                  <div class="fg">
-                    <label>Min Temp <span class="unit">°C</span></label>
-                    <input type="number" v-model="tempMin" placeholder="-20" class="inp" />
-                  </div>
-                  <div class="fg">
-                    <label>Max Temp <span class="unit">°C</span></label>
-                    <input type="number" v-model="tempMax" placeholder="8" class="inp" />
-                  </div>
+                <div class="temp-blocks">
+                  <button v-for="b in TEMP_BLOCKS" :key="b.key" type="button"
+                    class="temp-block" :class="{ active: selectedTempBlock === b.key }"
+                    :style="selectedTempBlock === b.key ? { borderColor: b.color, background: b.color + '14' } : {}"
+                    @click="selectedTempBlock = selectedTempBlock === b.key ? '' : b.key">
+                    <span class="tb-icon">{{ b.icon }}</span>
+                    <span class="tb-label">{{ b.label }}</span>
+                    <span class="tb-sub">{{ b.sub }}</span>
+                  </button>
                 </div>
                 <div class="fg">
                   <label>Fragile</label>
@@ -196,17 +216,32 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/services/api'
+import { TEMP_BLOCKS } from '@/data/tempBlocks'
+import { searchCities } from '@/data/worldCities'
 
 const router = useRouter()
 const route  = useRoute()
 
 const routeOrigin      = ref('')
 const routeDestination = ref('')
+const originSugs       = ref([])
+const destSugs         = ref([])
 
 onMounted(() => {
   if (route.query.origin)      routeOrigin.value      = route.query.origin
   if (route.query.destination) routeDestination.value = route.query.destination
 })
+
+// ── City autocomplete ─────────────────────────────────────────────
+const onOriginInput  = () => { originSugs.value = searchCities(routeOrigin.value) }
+const onOriginFocus  = () => { originSugs.value = searchCities(routeOrigin.value) }
+const onOriginBlur   = () => { setTimeout(() => { originSugs.value = [] }, 150) }
+const selectOrigin   = (c) => { routeOrigin.value = `${c.city}, ${c.country}`; originSugs.value = [] }
+
+const onDestInput    = () => { destSugs.value = searchCities(routeDestination.value) }
+const onDestFocus    = () => { destSugs.value = searchCities(routeDestination.value) }
+const onDestBlur     = () => { setTimeout(() => { destSugs.value = [] }, 150) }
+const selectDest     = (c) => { routeDestination.value = `${c.city}, ${c.country}`; destSugs.value = [] }
 
 const productType = ref('')
 const productTypes = [
@@ -218,8 +253,7 @@ const productTypes = [
 
 const pkg = reactive({ length: '', width: '', height: '', weight: '', quantity: '' })
 
-const tempMin  = ref('')
-const tempMax  = ref('')
+const selectedTempBlock = ref('')
 const isFragile = ref(false)
 
 const selectedCertificates = ref([])
@@ -265,6 +299,9 @@ const proceedToBuilder = async () => {
     origin:       routeOrigin.value,
     destination:  routeDestination.value,
     certificates: selectedCertificates.value,
+    tempBlock:    selectedTempBlock.value,
+    productType:  productType.value,
+    fragile:      isFragile.value,
   }
 
   try {
@@ -275,7 +312,8 @@ const proceedToBuilder = async () => {
         productType:     productType.value,
         weight:          Number(pkg.weight),
         dimensions:      `${pkg.length}x${pkg.width}x${pkg.height}cm`,
-        tempRange:       `${tempMin.value}–${tempMax.value}°C`,
+        tempRange:       selectedTempBlock.value ? TEMP_BLOCKS.find(b => b.key === selectedTempBlock.value)?.sub || '' : 'Not specified',
+        tempBlock:       selectedTempBlock.value,
         specialHandling: isFragile.value ? 'Fragile' : 'None',
       },
       certificates: selectedCertificates.value,
@@ -557,4 +595,35 @@ const proceedToBuilder = async () => {
   .dims-row { flex-wrap: wrap; }
   .dim-sep  { display: none; }
 }
+
+/* ── City autocomplete ── */
+.city-ac-wrap { position: relative; }
+.city-drop {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 200;
+  background: white; border: 1.5px solid var(--border-color); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12); overflow: hidden; max-height: 280px; overflow-y: auto;
+}
+.city-item {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer;
+  transition: background 0.1s; border-bottom: 1px solid #f8fafc;
+}
+.city-item:last-child { border-bottom: none; }
+.city-item:hover { background: #f0fdf4; }
+.ci-city   { font-size: 14px; font-weight: 600; color: var(--text-main); flex: 0 0 auto; }
+.ci-meta   { font-size: 12px; color: #64748b; flex: 1; }
+.ci-region { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase;
+             letter-spacing: 0.06em; flex-shrink: 0; }
+
+.temp-blocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.temp-block {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 16px 10px; border: 1.5px solid var(--border-color); border-radius: 14px;
+  background: #fafbfc; cursor: pointer; transition: all var(--transition-fast);
+  font-family: inherit; text-align: center;
+}
+.temp-block:hover { border-color: #94a3b8; background: white; transform: translateY(-1px); }
+.temp-block.active { background: white; box-shadow: 0 0 0 3px rgba(31,122,92,0.12); }
+.tb-icon  { font-size: 28px; }
+.tb-label { font-size: 13px; font-weight: 700; color: var(--text-main); }
+.tb-sub   { font-size: 11px; color: var(--text-muted); }
 </style>

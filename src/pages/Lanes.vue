@@ -329,6 +329,7 @@ import { ref, computed, reactive, onMounted } from 'vue'
 import { api } from '../services/api'
 import lanesData from '@/data/lanes.json'
 import { TRANSPORT_COMPANIES, WAREHOUSES, AIRPORTS, searchEntities } from '@/data/companies'
+import { TRANSPORT_TEMP_RISK } from '@/data/tempBlocks'
 
 // ── Company certificate lookup map ─────────────────────────────
 const CARRIER_CERTS = new Map()
@@ -461,11 +462,18 @@ const laneCompliance = (lane) => {
     .filter(n => n.validationStatus !== 'validated')
     .map(n => `${n.location}: ${n.validationStatus === 'pending' ? 'pending review' : 'not validated'}`)
 
-  // 3. Temperature chain — if any node has temp control, all nodes must
-  const laneHasTemp = nodes.some(n => n.temperatureControl)
-  const tempFails   = laneHasTemp
-    ? nodes.filter(n => !n.temperatureControl).map(n => `${n.location}: no temperature control`)
-    : []
+  // 3. Temperature Chain — transport modes must be appropriate for the cargo's temp block
+  const tempBlock = lane.tempBlock || lane.cargoProfile?.tempBlock || ''
+  const tempFails = []
+  if (tempBlock && tempBlock !== 'ambient') {
+    nodes.forEach(n => {
+      const t = n.transport || ''
+      if (!t || t === 'warehouse') return
+      const riskEntry = TRANSPORT_TEMP_RISK[tempBlock]?.[t]
+      if (riskEntry && !riskEntry.ok) tempFails.push(`${n.location || 'Node'}: ${t} transport — ${riskEntry.reason}`)
+    })
+  }
+  const hasTemp = !!tempBlock
 
   // 4. Carrier compliance — company in DB and holds required certs
   const carrierFails = []
@@ -486,7 +494,7 @@ const laneCompliance = (lane) => {
   const checks = [
     { key: 'certCoverage', label: 'Certificate Coverage', ok: certFails.length === 0,       fails: certFails,       skip: false },
     { key: 'validation',   label: 'Node Validation',      ok: validationFails.length === 0,  fails: validationFails, skip: false },
-    { key: 'tempChain',    label: 'Temperature Chain',    ok: tempFails.length === 0,        fails: tempFails,       skip: !laneHasTemp },
+    { key: 'tempChain',    label: 'Temperature Chain',    ok: tempFails.length === 0,        fails: tempFails,       skip: !hasTemp },
     { key: 'carrier',      label: 'Carrier Compliance',   ok: carrierFails.length === 0,     fails: carrierFails,    skip: false },
     { key: 'airTransport', label: 'Air Transport',        ok: airFails.length === 0,         fails: airFails,        skip: !hasAirNodes },
   ]
@@ -520,9 +528,18 @@ const nodeAlerts = (node, lane) => {
     alerts.push({ severity: 'critical', short: `Missing ${missing.join(', ')}`, message: `${loc} is missing required certificate${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}.`, node: loc })
   }
 
-  const laneHasTemp = lane.nodes.some(n => n.temperatureControl)
-  if (laneHasTemp && !node.temperatureControl) {
-    alerts.push({ severity: 'warning', short: 'No temp control', message: `${loc} lacks temperature control. Other nodes in this lane are temperature-controlled.`, node: loc })
+  // Temperature risk based on cargo tempBlock
+  const tempBlock = lane.tempBlock || lane.cargoProfile?.tempBlock || ''
+  if (tempBlock && tempBlock !== 'ambient' && node.transport && node.transport !== 'warehouse') {
+    const riskEntry = TRANSPORT_TEMP_RISK[tempBlock]?.[node.transport]
+    if (riskEntry && !riskEntry.ok) {
+      alerts.push({
+        severity: riskEntry.risk,
+        short: `${node.transport} transport risk`,
+        message: `${loc}: ${riskEntry.reason}`,
+        node: loc,
+      })
+    }
   }
 
   if (node.fragile && node.type !== 'warehouse' && node.type !== 'hub') {

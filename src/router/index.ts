@@ -10,6 +10,7 @@ import Register from '../pages/Register.vue'
 import Profile from '../pages/Profile.vue'
 import Settings from '../pages/Settings.vue'
 import Notifications from '../pages/Notifications.vue'
+import LaneReport from '../pages/LaneReport.vue'
 
 const routes = [
   {
@@ -64,6 +65,12 @@ const routes = [
     path: '/notifications',
     name: 'Notifications',
     component: Notifications,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/report',
+    name: 'LaneReport',
+    component: LaneReport,
     meta: { requiresAuth: true },
   },
 ]

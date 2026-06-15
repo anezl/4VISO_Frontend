@@ -130,7 +130,9 @@
                 @dragover.prevent="onDragOver(idx)"
                 @drop.prevent="onDrop(idx)"
                 @dragend="onDragEnd">
+
                 <div class="nc-accent"></div>
+
                 <div class="nc-topbar">
                   <span class="nc-role">{{ nodeRoleLabel(idx) }}</span>
                   <div class="nc-actions">
@@ -139,23 +141,76 @@
                       class="nc-del" @click.stop="deleteNode(idx)">×</button>
                   </div>
                 </div>
+
                 <div class="nc-body">
-                  <div class="nc-fac-ico">{{ facilityIcon(node) }}</div>
-                  <div class="nc-loc">{{ node.details.location || 'Set location…' }}</div>
-                  <div class="nc-company">{{ node.details.company || 'No company' }}</div>
-                  <div class="nc-fac-type">{{ facilityLabel(node) }}</div>
+                  <div class="nc-inline-field">
+                    <div class="nc-ac-wrap">
+                      <input v-model="node.details.location" class="nc-inp nc-inp-loc"
+                        :placeholder="node.type === 'origin' ? 'Origin city…' : node.type === 'destination' ? 'Destination city…' : 'City or facility…'"
+                        @click.stop @input.stop="onNodeLocationInput(node.id, node.details.location)"
+                        @focus.stop="onNodeLocationFocus(node.id, node.details.location)"
+                        @blur="onNodeLocationBlur" autocomplete="off" />
+                      <div class="nc-ac-drop"
+                        v-if="focusedNodeId === node.id && focusedField === 'location' && activeSugs.length">
+                        <div v-for="s in activeSugs" :key="s.id" class="nc-ac-item"
+                          @mousedown.prevent="selectNodeCity(node.id, s)">
+                          <span class="nai-main">{{ s.label }}</span>
+                          <span class="nai-sub">{{ s.sub }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="nc-inline-field">
+                    <div class="nc-ac-wrap">
+                      <input v-model="node.details.company" class="nc-inp nc-inp-co"
+                        placeholder="Facility company…"
+                        @click.stop @input.stop="onNodeCompanyInput(node.id, node.details.company)"
+                        @focus.stop="onNodeCompanyFocus(node.id, node.details.company)"
+                        @blur="onNodeCompanyBlur" autocomplete="off" />
+                      <div class="nc-ac-drop"
+                        v-if="focusedNodeId === node.id && focusedField === 'company' && activeSugs.length">
+                        <div v-for="s in activeSugs" :key="s.id" class="nc-ac-item"
+                          @mousedown.prevent="selectNodeCompany(node.id, s)">
+                          <span class="nai-main">{{ s.name }}</span>
+                          <span class="nai-sub">{{ s.certificates?.slice(0,3).join(' · ') }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="nc-fac-row" @click.stop>
+                    <button v-for="f in facilityTypes" :key="f.value" type="button"
+                      class="nc-fac-btn" :class="{ active: node.details.facilityType === f.value }"
+                      :title="f.label" @click.stop="setFacilityType(idx, f.value)">{{ f.icon }}</button>
+                  </div>
+
+                  <div v-if="routeTempBlock || routeFragile" class="nc-cap-strip nc-cap-strip-inline">
+                    <span v-if="routeTempBlock" class="nc-cap"
+                      :class="nodeCapTemp(node).ok === true ? 'ncc-ok' : nodeCapTemp(node).ok === false ? 'ncc-fail' : 'ncc-unknown'"
+                      :title="nodeCapTemp(node).reason">
+                      {{ routeTempData?.icon || '🌡️' }} {{ nodeCapTemp(node).icon }}
+                    </span>
+                    <span v-if="nodeCapFragile(node)" class="nc-cap"
+                      :class="nodeCapFragile(node).ok === true ? 'ncc-ok' : nodeCapFragile(node).ok === false ? 'ncc-fail' : 'ncc-unknown'"
+                      :title="nodeCapFragile(node).reason">
+                      📦 {{ nodeCapFragile(node).icon }}
+                    </span>
+                  </div>
                 </div>
+
                 <div class="nc-footer">
                   <div class="nc-certs">
                     <span v-if="requiredCertifications.length === 0" class="nc-no-certs">No cert req.</span>
-                    <span v-for="cert in requiredCertifications" :key="cert"
-                      class="nc-cert"
+                    <span v-for="cert in requiredCertifications" :key="cert" class="nc-cert"
                       :class="(node.certifications || []).includes(cert) ? 'nc-cert-ok' : 'nc-cert-miss'">
                       {{ cert }}
                     </span>
                   </div>
-                  <div v-if="node.backups && node.backups.length" class="nc-backup-badge">
-                    B{{ node.backups.length }}
+                  <div v-if="node.backups && node.backups.length" class="nc-backup-badge">B{{ node.backups.length }}</div>
+                  <div v-if="routeTempData" class="nc-temp"
+                    :style="{ background: routeTempData.color + '18', color: routeTempData.color, borderColor: routeTempData.color + '44' }">
+                    {{ routeTempData.icon }} {{ routeTempData.label }}
                   </div>
                 </div>
               </div>
@@ -163,13 +218,72 @@
               <!-- CONNECTOR (between cards) -->
               <div v-if="idx < nodes.length - 1" class="conn-col">
                 <div class="conn-line" :class="'c-' + (nodes[idx + 1].details.transportType || 'road')"></div>
-                <div class="conn-picker">
-                  <button v-for="t in transportTypes" :key="t.value"
-                    class="ctp-btn"
-                    :class="{ active: nodes[idx + 1].details.transportType === t.value }"
-                    :title="t.label"
-                    @click.stop="setNodeTransport(idx + 1, t.value)">{{ t.icon }}</button>
+
+                <!-- Collapsed connector header — always visible -->
+                <div class="conn-header" @click.stop="toggleConnector(idx + 1)">
+                  <div class="conn-transport-lbl">
+                    {{ transportIcon(nodes[idx + 1].details.transportType || 'road') }}
+                    {{ transportLabel(nodes[idx + 1].details.transportType || 'road') }}
+                  </div>
+                  <div class="conn-risk-dot"
+                    :class="'cr-' + (connRiskAssessment(idx + 1).level)">
+                  </div>
+                  <span class="conn-expand-icon">{{ expandedConnIdx === idx + 1 ? '▲' : '▼' }}</span>
                 </div>
+
+                <!-- Expanded transport panel -->
+                <div v-if="expandedConnIdx === idx + 1" class="conn-panel" @click.stop>
+                  <div class="cp-tabs">
+                    <span class="cp-tab-label">Transport Mode</span>
+                  </div>
+
+                  <!-- Transport mode picker -->
+                  <div class="conn-picker">
+                    <button v-for="t in transportTypes" :key="t.value"
+                      class="ctp-btn"
+                      :class="{ active: nodes[idx + 1].details.transportType === t.value }"
+                      :title="t.label"
+                      @click.stop="setNodeTransport(idx + 1, t.value)">{{ t.icon }}</button>
+                  </div>
+
+                  <!-- Transport company -->
+                  <div class="cp-field-label">Transport Company</div>
+                  <div class="nc-ac-wrap" style="width:100%">
+                    <input
+                      v-model="nodes[idx + 1].details.transportCompany"
+                      class="nc-inp cp-inp"
+                      placeholder="Carrier for this leg…"
+                      @click.stop
+                      @input.stop="onConnCompanyInput(idx + 1, nodes[idx + 1].details.transportCompany)"
+                      @focus.stop="onConnCompanyFocus(idx + 1, nodes[idx + 1].details.transportCompany)"
+                      @blur="onConnCompanyBlur"
+                      autocomplete="off" />
+                    <div class="nc-ac-drop"
+                      v-if="connFocusedNodeId === idx + 1 && connCompanySugs.length">
+                      <div v-for="s in connCompanySugs" :key="s.id" class="nc-ac-item"
+                        @mousedown.prevent="selectConnCompany(idx + 1, s)">
+                        <span class="nai-main">{{ s.name }}</span>
+                        <span class="nai-sub">{{ s.certificates?.slice(0,3).join(' · ') }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Risk assessment display -->
+                  <div class="cp-risk-block" :class="'cpb-' + connRiskAssessment(idx + 1).level">
+                    <div class="cp-risk-header">
+                      <span class="cp-risk-score">{{ connRiskAssessment(idx + 1).score }}</span>
+                      <span class="cp-risk-label">{{ connRiskAssessment(idx + 1).label }}</span>
+                    </div>
+                    <div class="cp-risk-details">
+                      <div v-for="(d, di) in connRiskAssessment(idx + 1).details" :key="di"
+                        class="cp-risk-detail" :class="'cpd-' + d.severity">
+                        <span class="cpd-icon">{{ d.icon }}</span>
+                        <span class="cpd-text">{{ d.text }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="conn-line" :class="'c-' + (nodes[idx + 1].details.transportType || 'road')"></div>
                 <span class="conn-arrow">→</span>
               </div>
@@ -179,151 +293,6 @@
         </div>
 
         </template><!-- end v-else -->
-      </div>
-    </div>
-
-    <!-- EDIT MODAL -->
-    <div class="modal-overlay" v-if="editingNodeIndex !== null" @click.self="closeModal">
-      <div class="modal-card-wrap" v-if="editingFormData">
-        <div class="modal-card">
-          <div class="modal-header">
-            <div>
-              <h3>{{ nodeTypeLabel(editingFormData.type) }}</h3>
-              <p class="modal-sub">{{ editingFormData.details.location || 'No location set' }}</p>
-            </div>
-            <button class="close-btn" @click="closeModal">×</button>
-          </div>
-          <div class="modal-form">
-
-            <!-- ORIGIN / DESTINATION -->
-            <template v-if="editingFormData.type === 'origin' || editingFormData.type === 'destination'">
-              <div class="form-group">
-                <label>{{ editingFormData.type === 'origin' ? 'Origin Location' : 'Destination Location' }}</label>
-                <div class="ac-wrap">
-                  <input v-model="editingFormData.details.location" class="modern-input" placeholder="City, Country"
-                    @input="onLocationInput" @blur="onLocationBlur" autocomplete="off" />
-                  <div class="ac-drop" v-if="locationSugs.length">
-                    <div v-for="s in locationSugs" :key="s.id" class="ac-item" @mousedown.prevent="selectLocation(s)">
-                      <span class="ac-label">{{ s.label }}</span>
-                      <span class="ac-sub">{{ s.sub }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>{{ editingFormData.type === 'origin' ? 'Sending Company' : 'Receiving Company' }}</label>
-                <div class="ac-wrap">
-                  <input v-model="editingFormData.details.company" class="modern-input" placeholder="e.g. DHL Supply Chain"
-                    @input="onCompanyInput" @blur="onCompanyBlur" autocomplete="off" />
-                  <div class="ac-drop" v-if="companySugs.length">
-                    <div v-for="s in companySugs" :key="s.id" class="ac-item" @mousedown.prevent="selectCompany(s)">
-                      <span class="ac-label">{{ s.name }}</span>
-                      <span class="ac-sub">{{ s.certificates?.join(' · ') || 'No certs listed' }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>Facility Type</label>
-                <div class="facility-btns">
-                  <button v-for="f in facilityTypes" :key="f.value" type="button"
-                    class="f-btn" :class="{ active: editingFormData.details.facilityType === f.value }"
-                    @click="editingFormData.details.facilityType = f.value" :title="f.label">
-                    <span>{{ f.icon }}</span><span class="f-label">{{ f.label }}</span>
-                  </button>
-                </div>
-              </div>
-            </template>
-
-            <!-- INTERMEDIARY -->
-            <template v-if="editingFormData.type === 'intermediary'">
-              <div class="form-group">
-                <label>Location</label>
-                <div class="ac-wrap">
-                  <input v-model="editingFormData.details.location" class="modern-input" placeholder="City, Airport, Port…"
-                    @input="onLocationInput" @blur="onLocationBlur" autocomplete="off" />
-                  <div class="ac-drop" v-if="locationSugs.length">
-                    <div v-for="s in locationSugs" :key="s.id" class="ac-item" @mousedown.prevent="selectLocation(s)">
-                      <span class="ac-label">{{ s.label }}</span>
-                      <span class="ac-sub">{{ s.sub }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>Transport Mode <span class="lbl-note">(arriving at this stop)</span></label>
-                <div class="transport-btns">
-                  <button v-for="t in transportTypes" :key="t.value" type="button"
-                    class="t-btn" :class="{ active: editingFormData.details.transportType === t.value }"
-                    @click="editingFormData.details.transportType = t.value">
-                    <span>{{ t.icon }}</span><span>{{ t.label }}</span>
-                  </button>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>Company <span class="lbl-note">(certified carriers)</span></label>
-                <div class="ac-wrap">
-                  <input v-model="editingFormData.details.company" class="modern-input" placeholder="Search certified carriers…"
-                    @input="onCompanyInput" @blur="onCompanyBlur" autocomplete="off" />
-                  <div class="ac-drop" v-if="companySugs.length">
-                    <div v-for="s in companySugs" :key="s.id" class="ac-item" @mousedown.prevent="selectCompany(s)">
-                      <span class="ac-label">{{ s.name }}</span>
-                      <span class="ac-sub">{{ s.certificates?.join(' · ') || 'No certs listed' }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>Facility Type</label>
-                <div class="facility-btns">
-                  <button v-for="f in facilityTypes" :key="f.value" type="button"
-                    class="f-btn" :class="{ active: editingFormData.details.facilityType === f.value }"
-                    @click="editingFormData.details.facilityType = f.value" :title="f.label">
-                    <span>{{ f.icon }}</span><span class="f-label">{{ f.label }}</span>
-                  </button>
-                </div>
-              </div>
-            </template>
-
-            <!-- CERTIFICATIONS -->
-            <div class="form-divider"></div>
-            <div class="form-group">
-              <label class="section-label">Facility Certifications</label>
-              <div class="certifications-selector">
-                <label v-for="cert in certificatesList" :key="cert" class="cert-checkbox">
-                  <input type="checkbox" :value="cert" v-model="editingFormData.certifications" />
-                  <span class="cert-text">{{ cert }}</span>
-                </label>
-              </div>
-              <p class="field-hint">Required for this route: {{ requiredCertifications.join(', ') || 'None' }}</p>
-              <div v-if="getMissingCertifications(editingFormData.certifications).length > 0" class="missing-certs-alert">
-                <span class="alert-icon">⚠️</span>
-                <span>Missing: {{ getMissingCertifications(editingFormData.certifications).join(', ') }}</span>
-              </div>
-            </div>
-
-            <!-- BACKUP NODES -->
-            <template v-if="editingFormData.type === 'intermediary' && editingFormData.backups && editingFormData.backups.length > 0">
-              <div class="form-divider"></div>
-              <div class="form-group">
-                <label class="section-label">Backup Nodes ({{ editingFormData.backups.length }})</label>
-                <div class="backups-list">
-                  <div v-for="(bk, bi) in editingFormData.backups" :key="bi" class="bk-item">
-                    <span class="bk-icon">{{ transportIcon(bk.transportType) }}</span>
-                    <span class="bk-loc">{{ bk.location || 'No location' }}</span>
-                    <span class="bk-co">{{ bk.company || '' }}</span>
-                    <button class="bk-remove" @click.stop="removeBackupInModal(bi)">×</button>
-                  </div>
-                </div>
-              </div>
-            </template>
-
-          </div>
-          <div class="modal-actions">
-            <button class="btn-cancel" @click="closeModal">Cancel</button>
-            <button class="btn-save" @click="saveNodeDetails">Save Details</button>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -373,7 +342,9 @@
 import { ref, computed, reactive, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/services/api'
-import { searchCompanies, searchLocations } from '@/data/companies'
+import { searchCompanies, searchLocations, getAllCompanies, TRANSPORT_COMPANIES, WAREHOUSES, AIRPORTS } from '@/data/companies'
+import { TEMP_BLOCKS, TRANSPORT_TEMP_RISK } from '@/data/tempBlocks'
+import { searchCities } from '@/data/worldCities'
 
 const router = useRouter()
 const route  = useRoute()
@@ -381,8 +352,8 @@ const route  = useRoute()
 // ─── Nodes ────────────────────────────────────────────────────────
 let nextId = 100
 const nodes = ref([
-  { id: 1, type: 'origin',      details: { company: '', location: '', facilityType: 'warehouse', transportType: '' }, certifications: [], backups: [], validationStatus: 'pending' },
-  { id: 2, type: 'destination', details: { company: '', location: '', facilityType: 'warehouse', transportType: '' }, certifications: [], backups: [], validationStatus: 'pending' },
+  { id: 1, type: 'origin',      details: { company: '', location: '', facilityType: 'warehouse', transportType: '', transportCompany: '' }, certifications: [], backups: [], validationStatus: 'pending' },
+  { id: 2, type: 'destination', details: { company: '', location: '', facilityType: 'warehouse', transportType: '', transportCompany: '' }, certifications: [], backups: [], validationStatus: 'pending' },
 ])
 
 const originNode        = computed(() => nodes.value.find(n => n.type === 'origin'))
@@ -435,6 +406,11 @@ const requiredCertifications = computed(() => {
   return []
 })
 
+const routeTempBlock = computed(() => {
+  try { return JSON.parse(localStorage.getItem('routeData') || '{}').tempBlock || '' } catch { return '' }
+})
+const routeTempData = computed(() => TEMP_BLOCKS.find(b => b.key === routeTempBlock.value) || null)
+
 const getMissingCertifications = (nodeCerts) => {
   if (!Array.isArray(nodeCerts)) nodeCerts = []
   return requiredCertifications.value.filter(c => !nodeCerts.includes(c))
@@ -463,6 +439,181 @@ const valStatusClass = (status) => {
   return 'vs-pending'
 }
 
+const tempBlockIcon   = (key) => TEMP_BLOCKS.find(b => b.key === key)?.icon ?? ''
+const tempBlockLabel  = (key) => TEMP_BLOCKS.find(b => b.key === key)?.label ?? ''
+const transportLabel  = (type) => transportTypes.find(t => t.value === type)?.label ?? type
+const transportRiskLevel = (transport, tempBlock) => {
+  if (!tempBlock || !transport || transport === '') return null
+  return TRANSPORT_TEMP_RISK[tempBlock]?.[transport] || null
+}
+
+const routeFragile = computed(() => {
+  try { return JSON.parse(localStorage.getItem('routeData') || '{}').fragile === true } catch { return false }
+})
+
+const ALL_DB = [...TRANSPORT_COMPANIES, ...WAREHOUSES, ...AIRPORTS]
+
+// ─── Inline card editing ──────────────────────────────────────────
+const focusedNodeId = ref(null)
+const focusedField  = ref(null)  // 'location' | 'company'
+const activeSugs    = ref([])
+
+const onNodeLocationInput = (nodeId, val) => {
+  focusedNodeId.value = nodeId
+  focusedField.value  = 'location'
+  const citySugs = searchCities(val, 5).map(c => ({
+    id: 'c-' + c.code + c.city, label: c.city, sub: `${c.country} · ${c.code}`,
+    company: null, facilityType: null,
+  }))
+  const facSugs = searchLocations(val).slice(0, 4).map(s => ({
+    id: s.id, label: s.label, sub: s.sub, company: s.company, facilityType: s.facilityType,
+  }))
+  activeSugs.value = [...citySugs, ...facSugs].slice(0, 8)
+}
+const onNodeLocationFocus = (nodeId, val) => { onNodeLocationInput(nodeId, val) }
+const onNodeLocationBlur  = () => {
+  setTimeout(() => { activeSugs.value = []; focusedNodeId.value = null; focusedField.value = null }, 150)
+  saveLane()
+}
+const selectNodeCity = (nodeId, s) => {
+  const node = nodes.value.find(n => n.id === nodeId)
+  if (!node) return
+  node.details.location = s.label
+  if (s.company && !node.details.company)    node.details.company      = s.company
+  if (s.facilityType)                        node.details.facilityType = s.facilityType
+  activeSugs.value = []; focusedNodeId.value = null; focusedField.value = null
+  saveLane()
+}
+
+const onNodeCompanyInput = (nodeId, val) => {
+  focusedNodeId.value = nodeId
+  focusedField.value  = 'company'
+  activeSugs.value = val.length === 0 ? getAllCompanies(6) : searchCompanies(val)
+}
+const onNodeCompanyFocus = (nodeId, val) => { onNodeCompanyInput(nodeId, val) }
+const onNodeCompanyBlur  = () => {
+  setTimeout(() => { activeSugs.value = []; focusedNodeId.value = null; focusedField.value = null }, 150)
+  saveLane()
+}
+const selectNodeCompany = (nodeId, s) => {
+  const node = nodes.value.find(n => n.id === nodeId)
+  if (!node) return
+  node.details.company = s.name
+  if (s.certificates?.length) {
+    node.certifications = s.certificates.filter(c => requiredCertifications.value.includes(c))
+  }
+  activeSugs.value = []; focusedNodeId.value = null; focusedField.value = null
+  saveLane()
+}
+const setFacilityType = (idx, type) => { nodes.value[idx].details.facilityType = type; saveLane() }
+
+// ─── Transport connector state ────────────────────────────────────
+const expandedConnIdx   = ref(null)  // index of expanded connector (the idx of the destination node)
+const connCompanySugs   = ref([])
+const connFocusedNodeId = ref(null)
+
+const toggleConnector = (idx) => {
+  expandedConnIdx.value = expandedConnIdx.value === idx ? null : idx
+  connCompanySugs.value = []
+}
+
+const onConnCompanyInput = (idx, val) => {
+  connFocusedNodeId.value = idx
+  connCompanySugs.value   = val.length === 0 ? getAllCompanies(6) : searchCompanies(val)
+}
+const onConnCompanyFocus = (idx, val) => { onConnCompanyInput(idx, val) }
+const onConnCompanyBlur  = () => {
+  setTimeout(() => { connCompanySugs.value = []; connFocusedNodeId.value = null }, 150)
+  saveLane()
+}
+const selectConnCompany = (idx, s) => {
+  nodes.value[idx].details.transportCompany = s.name
+  connCompanySugs.value = []; connFocusedNodeId.value = null
+  saveLane()
+}
+
+// Transport risk for a specific transport + company + tempBlock combination
+const connRiskAssessment = (idx) => {
+  const node = nodes.value[idx]
+  if (!node) return { score: null, level: 'ok', label: 'N/A', details: [] }
+  const tb         = routeTempBlock.value
+  const transport  = node.details?.transportType || 'road'
+  const company    = node.details?.transportCompany || node.details?.company || ''
+  const details    = []
+  let score        = 100
+
+  // Transport mode vs temp block
+  if (tb && tb !== 'ambient') {
+    const re = TRANSPORT_TEMP_RISK[tb]?.[transport]
+    if (re && !re.ok) {
+      score -= re.risk === 'critical' ? 40 : 20
+      details.push({ icon: '🌡️', text: re.reason, severity: re.risk })
+    } else {
+      details.push({ icon: '✓', text: 'Transport mode suitable for temperature requirement', severity: 'ok' })
+    }
+  }
+
+  // Company capability check
+  if (company) {
+    const tc = [...TRANSPORT_COMPANIES, ...WAREHOUSES, ...AIRPORTS].find(c => c.name === company)
+    if (tc) {
+      if (tb && !(tc.tempCapabilities || []).includes(tb)) {
+        score -= 30
+        details.push({ icon: '✗', text: `${company}: not ${tb} capable`, severity: 'critical' })
+      } else if (tb) {
+        details.push({ icon: '✓', text: `${company}: temperature capable`, severity: 'ok' })
+      }
+      if (routeFragile.value && !tc.fragileCapable) {
+        score -= 20
+        details.push({ icon: '✗', text: `${company}: not certified for fragile handling`, severity: 'warning' })
+      } else if (routeFragile.value) {
+        details.push({ icon: '✓', text: `${company}: fragile capable`, severity: 'ok' })
+      }
+    } else {
+      score -= 10
+      details.push({ icon: '?', text: `${company}: not in certified database`, severity: 'warning' })
+    }
+  } else {
+    details.push({ icon: '⚠️', text: 'No transport company assigned', severity: 'warning' })
+    score -= 10
+  }
+
+  const level = score >= 85 ? 'ok' : score >= 60 ? 'warning' : 'critical'
+  const label = score >= 85 ? 'Low Risk' : score >= 60 ? 'Medium Risk' : 'High Risk'
+  return { score: Math.max(0, score), level, label, details }
+}
+
+// Returns { ok, icon, reason } for temperature capability of a node
+const nodeCapTemp = (node) => {
+  const tb = routeTempBlock.value
+  if (!tb || tb === 'ambient') return { ok: true, icon: '✓', reason: 'Ambient — no cold chain required' }
+  const wh = WAREHOUSES.find(w => w.company === node.details?.company || w.name === node.details?.location)
+  if (wh) {
+    if ((wh.tempCapabilities || []).includes(tb)) return { ok: true, icon: '✓', reason: `${tb} storage confirmed` }
+    return { ok: false, icon: '✗', reason: `No ${tb} capability (has: ${(wh.tempCapabilities||[]).join(', ')})` }
+  }
+  const ap = AIRPORTS.find(a => a.company === node.details?.company || a.name === node.details?.location)
+  if (ap) {
+    if ((ap.tempCapabilities || []).includes(tb)) return { ok: true, icon: '✓', reason: `Airport: ${tb} capable` }
+    return { ok: false, icon: '✗', reason: `Airport not ${tb} capable` }
+  }
+  const tc = TRANSPORT_COMPANIES.find(c => c.name === node.details?.company)
+  if (tc) {
+    if ((tc.tempCapabilities || []).includes(tb)) return { ok: true, icon: '✓', reason: `Carrier: ${tb} capable` }
+    return { ok: false, icon: '✗', reason: `Carrier not ${tb} capable` }
+  }
+  return { ok: null, icon: '?', reason: 'Not in database — unverified' }
+}
+
+// Returns { ok, icon, reason } for fragile handling capability of a node
+const nodeCapFragile = (node) => {
+  if (!routeFragile.value) return null
+  const company = ALL_DB.find(c => c.name === node.details?.company)
+  if (!company) return { ok: null, icon: '?', reason: 'Company not in database' }
+  if (company.fragileCapable) return { ok: true, icon: '✓', reason: 'Fragile handling certified' }
+  return { ok: false, icon: '✗', reason: 'Not certified for fragile handling' }
+}
+
 // ─── Toolbar modes ────────────────────────────────────────────────
 const removingMode   = ref(false)
 const backupPickMode = ref(false)
@@ -471,76 +622,11 @@ const toggleRemoveMode    = () => { removingMode.value = !removingMode.value; ba
 const enterBackupPickMode = () => { backupPickMode.value = !backupPickMode.value; removingMode.value = false }
 
 const handleCardClick = (idx) => {
-  if (removingMode.value && nodes.value[idx].type === 'intermediary') {
-    deleteNode(idx); return
-  }
-  if (backupPickMode.value && nodes.value[idx].type === 'intermediary') {
-    addBackupToNode(idx); backupPickMode.value = false; return
-  }
-  openModal(idx)
-}
-
-// ─── Modal ────────────────────────────────────────────────────────
-const editingNodeIndex = ref(null)
-const editingFormData  = ref(null)
-
-const openModal = (index) => {
-  editingNodeIndex.value = index
-  editingFormData.value  = JSON.parse(JSON.stringify(nodes.value[index]))
-  if (!editingFormData.value.backups)                  editingFormData.value.backups = []
-  if (!editingFormData.value.certifications)           editingFormData.value.certifications = []
-  if (!editingFormData.value.details.facilityType)     editingFormData.value.details.facilityType = 'warehouse'
-  if (!editingFormData.value.details.transportType)    editingFormData.value.details.transportType = 'road'
-}
-
-const closeModal = () => {
-  editingNodeIndex.value = null
-  editingFormData.value  = null
-  companySugs.value  = []
-  locationSugs.value = []
-}
-
-const saveNodeDetails = () => {
-  if (editingNodeIndex.value !== null && editingFormData.value)
-    nodes.value[editingNodeIndex.value] = { ...editingFormData.value }
-  closeModal()
-  saveLane()
-}
-
-const removeBackupInModal = (bi) => {
-  if (editingFormData.value?.backups) editingFormData.value.backups.splice(bi, 1)
-}
-
-// ─── Autocomplete ─────────────────────────────────────────────────
-const companySugs  = ref([])
-const locationSugs = ref([])
-
-const onCompanyInput = () => {
-  companySugs.value = searchCompanies(editingFormData.value?.details?.company || '')
-}
-const onLocationInput = () => {
-  locationSugs.value = searchLocations(editingFormData.value?.details?.location || '')
-}
-
-const selectCompany = (s) => {
-  if (!editingFormData.value) return
-  editingFormData.value.details.company = s.name
-  companySugs.value = []
-  if (!editingFormData.value.certifications?.length && s.certificates?.length) {
-    const routeCerts = requiredCertifications.value
-    editingFormData.value.certifications = s.certificates.filter(c => routeCerts.includes(c))
+  if (removingMode.value && nodes.value[idx].type === 'intermediary') { deleteNode(idx) }
+  else if (backupPickMode.value && nodes.value[idx].type === 'intermediary') {
+    addBackupToNode(idx); backupPickMode.value = false
   }
 }
-const selectLocation = (s) => {
-  if (!editingFormData.value) return
-  editingFormData.value.details.location = s.city
-  locationSugs.value = []
-  if (!editingFormData.value.details.company && s.company) editingFormData.value.details.company = s.company
-  if (s.facilityType) editingFormData.value.details.facilityType = s.facilityType
-}
-
-const onCompanyBlur  = () => { setTimeout(() => { companySugs.value  = [] }, 150) }
-const onLocationBlur = () => { setTimeout(() => { locationSugs.value = [] }, 150) }
 
 // ─── Backup modal ─────────────────────────────────────────────────
 const editingBackupRef  = reactive({ nodeIdx: null, bkIdx: null })
@@ -568,10 +654,10 @@ const addNode = () => {
   const insertIdx = nodes.value.length - 1
   nodes.value.splice(insertIdx, 0, {
     id: nextId++, type: 'intermediary',
-    details: { company: '', location: '', facilityType: 'warehouse', transportType: 'road' },
+    details: { company: '', location: '', facilityType: 'warehouse', transportType: 'road', transportCompany: '' },
     certifications: [], backups: [], validationStatus: 'pending',
   })
-  openModal(insertIdx)
+  saveLane()
 }
 
 const deleteNode = (index) => {
@@ -641,11 +727,12 @@ let saveTimer = null
 
 const buildPayload = () => ({
   nodes: nodes.value.map(n => ({
-    location:     n.details.location,
-    company:      n.details.company,
-    transport:    n.details.transportType,
-    type:         n.details.facilityType,
-    certificates: n.certifications || [],
+    location:        n.details.location,
+    company:         n.details.company,
+    transport:       n.details.transportType,
+    transportCompany: n.details.transportCompany,
+    type:            n.details.facilityType,
+    certificates:    n.certifications || [],
     backups: (n.backups || []).map(b => ({
       location:      b.location      || '',
       company:       b.company       || '',
@@ -682,12 +769,15 @@ const saveToLocalStorage = () => {
         location:         n.details.location      || '',
         company:          n.details.company       || '',
         transport:        n.details.transportType || 'road',
+        transportCompany: n.details.transportCompany || '',
         type:             n.details.facilityType  || 'warehouse',
         certificates:     n.certifications        || [],
         backups:          n.backups               || [],
         validationStatus: n.validationStatus      || 'pending',
       })),
       certificates: routeData.certificates || [],
+      tempBlock:    routeData.tempBlock    || '',
+      productType:  routeData.productType  || '',
       status:       'active',
       riskLevel:    'low',
       createdAt:    new Date().toISOString(),
@@ -711,7 +801,7 @@ const finishLane = async () => {
   } catch {}
   saveToLocalStorage()
   isFinishing.value = false
-  router.push('/lanes')
+  router.push({ name: 'LaneReport', query: { laneId: route.query.laneId || 'local' } })
 }
 
 // ─── Mount ────────────────────────────────────────────────────────
@@ -732,10 +822,11 @@ onMounted(async () => {
           return {
             id: n._id || nextId++, type,
             details: {
-              location:      n.location  || '',
-              company:       n.company   || '',
-              transportType: n.transport || 'road',
-              facilityType:  n.type      || 'warehouse',
+              location:         n.location         || '',
+              company:          n.company          || '',
+              transportType:    n.transport        || 'road',
+              facilityType:     n.type             || 'warehouse',
+              transportCompany: n.transportCompany || '',
             },
             certifications:  n.certificates || [],
             backups: (n.backups || []).map(b => ({
@@ -940,16 +1031,15 @@ onMounted(async () => {
 
 /* ── Node card ── */
 .node-card {
-  width: 220px; min-height: 280px;
+  width: 250px; min-height: 180px;
   background: white; border-radius: 16px;
   border: 2px solid var(--border-color);
   box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-  cursor: pointer;
   display: flex; flex-direction: column;
-  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
-  flex-shrink: 0; overflow: hidden; user-select: none;
+  transition: box-shadow 0.2s, border-color 0.2s;
+  flex-shrink: 0; overflow: visible; user-select: none;
 }
-.node-card:hover          { box-shadow: 0 8px 28px rgba(0,0,0,0.14); transform: translateY(-2px); }
+.node-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.14); }
 .node-card.is-dragging    { opacity: 0.45; }
 .node-card.drag-over      { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-glow); }
 .node-card.remove-mode    { border-color: #ef4444; animation: pulse-card-red 0.8s ease-in-out infinite alternate; }
@@ -976,11 +1066,54 @@ onMounted(async () => {
 .nc-del { background: none; border: none; color: #ef4444; font-size: 16px; cursor: pointer; line-height: 1; padding: 0 2px; border-radius: 4px; opacity: 0.5; }
 .nc-del:hover { opacity: 1; background: #fef2f2; }
 
-.nc-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 14px; gap: 6px; text-align: center; }
-.nc-fac-ico  { font-size: 36px; line-height: 1; }
-.nc-loc      { font-size: 15px; font-weight: 600; color: var(--text-main); line-height: 1.25; word-break: break-word; }
-.nc-company  { font-size: 11.5px; color: var(--text-muted); line-height: 1.3; word-break: break-word; }
-.nc-fac-type { font-size: 10.5px; color: #94a3b8; font-style: italic; margin-top: 2px; }
+.nc-body { flex: 1; display: flex; flex-direction: column; padding: 10px 10px 6px; gap: 6px; }
+
+/* ── Inline inputs ── */
+.nc-inline-field { position: relative; }
+.nc-ac-wrap      { position: relative; }
+.nc-inp {
+  width: 100%; padding: 5px 8px; border: 1.5px solid #e2e8f0; border-radius: 7px;
+  font-size: 12px; color: #1e293b; background: #f8fafc;
+  font-family: inherit; box-sizing: border-box; transition: all 0.15s; outline: none;
+}
+.nc-inp:focus   { border-color: #1F7A5C; background: white; box-shadow: 0 0 0 2px rgba(31,122,92,0.12); }
+.nc-inp-loc     { font-weight: 600; font-size: 12.5px; }
+.nc-inp-co      { color: #64748b; }
+.nc-inp::placeholder { color: #b0bac5; font-weight: 400; }
+
+.nc-ac-drop {
+  position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 300;
+  background: white; border: 1.5px solid #e2e8f0; border-radius: 9px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.14); overflow: hidden; max-height: 180px; overflow-y: auto;
+}
+.nc-ac-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 10px; cursor: pointer; border-bottom: 1px solid #f8fafc; gap: 6px;
+}
+.nc-ac-item:last-child { border-bottom: none; }
+.nc-ac-item:hover { background: #f0fdf4; }
+.nai-main { font-size: 12px; font-weight: 600; color: #1e293b; }
+.nai-sub  { font-size: 10px; color: #64748b; text-align: right; flex-shrink: 0; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.nc-fac-row { display: flex; gap: 3px; flex-wrap: wrap; }
+.nc-fac-btn {
+  width: 24px; height: 24px; border: 1.5px solid #e2e8f0; border-radius: 5px;
+  background: #f8fafc; cursor: pointer; font-size: 11px; padding: 0;
+  display: flex; align-items: center; justify-content: center; transition: all 0.12s;
+}
+.nc-fac-btn:hover  { border-color: #1F7A5C; background: #f0fdf4; }
+.nc-fac-btn.active { border-color: #1F7A5C; background: #dcfce7; }
+
+.nc-cap-strip { display: flex; gap: 5px; flex-wrap: wrap; }
+.nc-cap-strip-inline { justify-content: flex-start; margin-top: 2px; }
+.nc-cap {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 5px;
+  cursor: default; letter-spacing: 0.02em;
+}
+.ncc-ok      { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.ncc-fail    { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.ncc-unknown { background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; }
 
 .nc-footer {
   padding: 10px 14px; border-top: 1px solid var(--border-color);
@@ -993,37 +1126,86 @@ onMounted(async () => {
 .nc-cert-miss    { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
 .nc-no-certs     { font-size: 9.5px; color: #94a3b8; font-style: italic; }
 .nc-backup-badge { font-size: 10px; font-weight: 700; padding: 3px 8px; background: #ede9fe; color: #7c3aed; border-radius: 4px; flex-shrink: 0; }
+.nc-temp {
+  font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+  border: 1px solid; letter-spacing: 0.03em; white-space: nowrap; flex-shrink: 0;
+}
 
 /* ── Connector ── */
 .conn-col {
   display: flex; flex-direction: column; align-items: center;
-  width: 110px; flex-shrink: 0;
+  width: 130px; flex-shrink: 0; position: relative; z-index: 10;
 }
-.conn-line { width: 2px; height: 18px; background: #B8C2CC; border-radius: 2px; }
+.conn-line { width: 2px; height: 16px; background: #B8C2CC; border-radius: 2px; flex-shrink: 0; }
 .conn-line.c-road      { background: #D97448; }
 .conn-line.c-air       { background: #D4A83A; }
 .conn-line.c-sea       { background: #2585A3; }
 .conn-line.c-rail      { background: #5488CB; }
 .conn-line.c-warehouse { background: #8267CF; }
 
+.conn-header {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 5px 8px; cursor: pointer; border-radius: 8px;
+  background: white; border: 1px solid var(--border-color);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  transition: all 0.15s; min-width: 90px;
+}
+.conn-header:hover { border-color: #1F7A5C; box-shadow: 0 2px 8px rgba(31,122,92,0.15); }
+
+.conn-transport-lbl {
+  font-size: 11px; font-weight: 600; color: var(--text-main);
+  white-space: nowrap; display: flex; align-items: center; gap: 3px;
+}
+.conn-risk-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cr-ok       { background: #22c55e; }
+.cr-warning  { background: #f59e0b; }
+.cr-critical { background: #ef4444; }
+.conn-expand-icon { font-size: 8px; color: #94a3b8; }
+.conn-arrow { font-size: 16px; color: var(--primary); flex-shrink: 0; }
+
+/* Expanded panel */
+.conn-panel {
+  background: white; border: 1.5px solid var(--border-color); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 10px; width: 200px;
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 200; display: flex; flex-direction: column; gap: 8px;
+}
+.cp-tabs { display: flex; align-items: center; justify-content: space-between; }
+.cp-tab-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #64748b; }
+.cp-field-label { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+.cp-inp { font-size: 12px; }
+
 .conn-picker {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;
-  padding: 5px; background: white; border-radius: 10px;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.09);
 }
 .ctp-btn {
-  width: 28px; height: 28px;
-  border: 1.5px solid var(--border-color); border-radius: 6px;
+  height: 28px; border: 1.5px solid var(--border-color); border-radius: 6px;
   background: white; cursor: pointer; font-size: 14px;
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s; padding: 0;
+  display: flex; align-items: center; justify-content: center; transition: all 0.15s; padding: 0;
 }
-.ctp-btn:hover  { border-color: var(--primary); background: var(--primary-glow); transform: scale(1.1); }
+.ctp-btn:hover  { border-color: var(--primary); background: var(--primary-glow); }
 .ctp-btn.active { border-color: var(--primary); background: var(--primary-glow); }
-.conn-arrow { font-size: 18px; color: var(--primary); margin-top: 3px; flex-shrink: 0; }
 
-/* ── Modal ── */
+/* Risk block */
+.cp-risk-block { border-radius: 8px; padding: 8px 10px; }
+.cpb-ok       { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.cpb-warning  { background: #fffbeb; border: 1px solid #fde68a; }
+.cpb-critical { background: #fef2f2; border: 1px solid #fecaca; }
+.cp-risk-header { display: flex; align-items: baseline; gap: 6px; margin-bottom: 6px; }
+.cp-risk-score  { font-size: 20px; font-weight: 800; color: #1e293b; line-height: 1; }
+.cp-risk-label  { font-size: 11px; font-weight: 600; color: #64748b; }
+.cpb-ok       .cp-risk-score { color: #15803d; }
+.cpb-warning  .cp-risk-score { color: #b45309; }
+.cpb-critical .cp-risk-score { color: #b91c1c; }
+.cp-risk-details { display: flex; flex-direction: column; gap: 3px; }
+.cp-risk-detail { display: flex; gap: 5px; align-items: flex-start; font-size: 10.5px; }
+.cpd-icon { flex-shrink: 0; font-size: 11px; }
+.cpd-text { line-height: 1.4; color: #475569; }
+.cpd-critical .cpd-text { color: #b91c1c; }
+.cpd-warning  .cpd-text { color: #854d0e; }
+.cpd-ok       .cpd-text { color: #15803d; }
+
+/* ── Backup Modal ── */
 .modal-overlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.45);
@@ -1048,7 +1230,6 @@ onMounted(async () => {
 .modal-form { flex: 1; overflow-y: auto; padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; }
 .form-group       { display: flex; flex-direction: column; gap: 6px; }
 .form-group label { font-size: 13px; font-weight: 500; color: var(--text-main); }
-.lbl-note         { font-size: 11px; font-weight: 400; color: var(--text-muted); }
 
 .modern-input {
   width: 100%; padding: 10px 13px;
@@ -1058,18 +1239,6 @@ onMounted(async () => {
   transition: all var(--transition-fast); background: #fafbfc;
 }
 .modern-input:focus { outline: none; border-color: var(--primary); background: white; box-shadow: 0 0 0 3px var(--primary-glow); }
-
-.ac-wrap { position: relative; }
-.ac-drop {
-  position: absolute; top: calc(100% + 3px); left: 0; right: 0; z-index: 200;
-  background: #fff; border: 1px solid var(--border-color); border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.12); overflow: hidden;
-}
-.ac-item { display: flex; flex-direction: column; gap: 2px; padding: 9px 13px; cursor: pointer; transition: background .1s; border-bottom: 1px solid #f1f3f6; }
-.ac-item:last-child { border-bottom: none; }
-.ac-item:hover { background: #f8fafc; }
-.ac-label { font-size: 13px; font-weight: 600; color: var(--text-main); }
-.ac-sub   { font-size: 11px; color: #94a3b8; }
 
 .transport-btns { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .t-btn {
@@ -1081,32 +1250,6 @@ onMounted(async () => {
 .t-btn:hover  { border-color: var(--primary); color: var(--primary); background: var(--primary-glow); }
 .t-btn.active { border-color: var(--primary); background: var(--primary-glow); color: var(--primary); font-weight: 600; }
 .t-btn span:first-child { font-size: 18px; }
-
-.facility-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.f-btn {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 8px 6px; border: 1.5px solid var(--border-color); border-radius: 8px;
-  background: white; cursor: pointer; font-size: 10px;
-  color: var(--text-muted); font-family: inherit; transition: all var(--transition-fast);
-}
-.f-btn:hover  { border-color: var(--primary); color: var(--primary); background: var(--primary-glow); }
-.f-btn.active { border-color: var(--primary); background: var(--primary-glow); color: var(--primary); font-weight: 600; }
-.f-btn span:first-child { font-size: 16px; }
-.f-label { display: block; width: 100%; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.form-divider { height: 1px; background: var(--border-color); margin: 4px 0; }
-.section-label { display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
-
-.certifications-selector { display: flex; flex-direction: column; gap: 8px; padding: 10px; background: #f9fafb; border: 1px solid var(--border-color); border-radius: 8px; }
-.cert-checkbox { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 8px; border-radius: 6px; transition: background var(--transition-fast); }
-.cert-checkbox:hover { background: rgba(31,122,92,0.08); }
-.cert-checkbox input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex-shrink: 0; }
-.cert-text { font-size: 13px; color: var(--text-main); user-select: none; }
-.field-hint { margin: 4px 0 0; font-size: 11px; color: var(--text-muted); font-style: italic; }
-
-.missing-certs-alert { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; margin-top: 8px; }
-.alert-icon { font-size: 14px; flex-shrink: 0; }
-.missing-certs-alert span:last-child { font-size: 12px; color: #856404; font-weight: 500; }
 
 .backups-list { display: flex; flex-direction: column; gap: 6px; }
 .bk-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #f9fafb; border: 1px solid var(--border-color); border-radius: 8px; }
