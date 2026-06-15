@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { api, getAuthToken, clearAuthSession } from '../services/api'
-import { getAuthToken } from '../services/api'
 
 import Dashboard from '../pages/Dashboard.vue'
 import CreateRoute from '../pages/CreateRoute.vue'

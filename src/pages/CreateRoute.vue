@@ -4,33 +4,21 @@
     <!-- LEFT INFO PANEL -->
     <div class="info-panel">
       <div class="info-content">
-        <div class="step-pill">Step {{ reviewMode ? '2' : '1' }} of 3</div>
-        <h2 class="panel-title">{{ reviewMode ? 'Risk Review' : 'New Route Setup' }}</h2>
+        <div class="step-pill">Step 1 of 2</div>
+        <h2 class="panel-title">New Route Setup</h2>
         <p class="panel-desc">
-          {{ reviewMode
-            ? 'Review pre-route compliance before building your lane. You can always go back and adjust.'
-            : 'Define product requirements and shipping constraints before building your supply chain lane.' }}
+          Define product requirements and shipping constraints before building your supply chain lane.
         </p>
 
         <div class="timeline">
           <div class="tl-item">
             <div class="tl-icon">
-              <div class="tl-dot" :class="{ done: reviewMode }"></div>
+              <div class="tl-dot"></div>
               <div class="tl-line"></div>
             </div>
             <div class="tl-text">
               <strong>Requirements</strong>
               <span>Product specs &amp; constraints</span>
-            </div>
-          </div>
-          <div class="tl-item">
-            <div class="tl-icon">
-              <div class="tl-dot" :class="{ active: reviewMode, pending: !reviewMode }"></div>
-              <div class="tl-line"></div>
-            </div>
-            <div class="tl-text">
-              <strong>Risk Review</strong>
-              <span>Pre-route compliance check</span>
             </div>
           </div>
           <div class="tl-item">
@@ -44,14 +32,6 @@
           </div>
         </div>
 
-        <!-- Risk score preview in panel (only in review mode) -->
-        <div v-if="reviewMode" class="panel-score">
-          <span class="panel-score-badge" :class="riskReview.status">
-            {{ riskReview.status }}
-            <span class="panel-score-frac">{{ riskReview.passed }}/{{ riskReview.total }}</span>
-          </span>
-          <span class="panel-score-label">pre-route checks</span>
-        </div>
       </div>
     </div>
 
@@ -63,9 +43,7 @@
           <!-- ════════════════════════════════════════════════
                STEP 1: REQUIREMENTS FORM
                ════════════════════════════════════════════════ -->
-          <template v-if="!reviewMode">
-
-            <!-- 00 ROUTE -->
+          <!-- 00 ROUTE -->
             <section class="card">
               <div class="card-header">
                 <span class="card-num">00</span>
@@ -195,68 +173,6 @@
               </div>
             </section>
 
-          </template>
-
-          <!-- ════════════════════════════════════════════════
-               STEP 2: RISK REVIEW
-               ════════════════════════════════════════════════ -->
-          <template v-if="reviewMode">
-
-            <!-- Route summary -->
-            <section class="card review-summary-card">
-              <div class="rr-route">
-                <span class="rr-city">{{ routeOrigin || 'Origin' }}</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                <span class="rr-city">{{ routeDestination || 'Destination' }}</span>
-              </div>
-              <div class="rr-meta">
-                <span class="rr-pt">{{ productTypeName }}</span>
-                <span v-if="tempMin !== '' || tempMax !== ''" class="rr-temp">{{ tempMin }}°C – {{ tempMax }}°C</span>
-                <span v-if="isFragile" class="rr-fragile">Fragile</span>
-                <span class="rr-certs">{{ selectedCertificates.join(' · ') || 'No certs' }}</span>
-              </div>
-            </section>
-
-            <!-- Warning banner (if non-compliant) -->
-            <div v-if="riskReview.status !== 'COMPLIANT'" class="review-warning">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-              <div class="review-warning-text">
-                <strong>{{ riskReview.status === 'CRITICAL' ? 'Critical gaps detected' : 'Pre-route warnings' }}</strong>
-                <span>Review the checks below. You can still proceed — all warnings are informational only.</span>
-              </div>
-            </div>
-
-            <!-- Compliance checks -->
-            <section class="card review-checks-card">
-              <div class="rr-checks-hdr">
-                <span class="rr-checks-title">Pre-Route Compliance</span>
-                <span class="rr-score-badge" :class="riskReview.status">
-                  {{ riskReview.passed }}/{{ riskReview.total }} checks
-                </span>
-              </div>
-              <div class="rr-checks-list">
-                <div v-for="c in riskReview.checks" :key="c.key" class="rr-check-row" :class="c.ok ? 'pass' : 'fail'">
-                  <div class="rr-check-icon">{{ c.ok ? '✓' : '✗' }}</div>
-                  <div class="rr-check-body">
-                    <span class="rr-check-label">{{ c.label }}</span>
-                    <span class="rr-check-detail">{{ c.detail }}</span>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <!-- Recommendations (if any) -->
-            <section v-if="riskReview.recommendations.length" class="card review-recs-card">
-              <div class="rr-recs-hdr">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                Recommendations
-              </div>
-              <ul class="rr-recs-list">
-                <li v-for="(r, i) in riskReview.recommendations" :key="i">{{ r }}</li>
-              </ul>
-            </section>
-
-          </template>
 
         </div>
       </div>
@@ -265,20 +181,10 @@
       <div class="form-footer">
         <p v-if="submitError" class="submit-error">{{ submitError }}</p>
         <div class="actions">
-          <template v-if="!reviewMode">
-            <button class="btn-ghost" @click="$router.push('/')">Cancel</button>
-            <button class="btn-primary" @click="goToReview">
-              Risk Review →
-            </button>
-          </template>
-          <template v-else>
-            <button class="btn-ghost" @click="reviewMode = false">
-              ← Back to Edit
-            </button>
-            <button class="btn-primary" @click="proceedToBuilder">
-              Continue to Route Builder →
-            </button>
-          </template>
+          <button class="btn-ghost" @click="$router.push('/')">Cancel</button>
+          <button class="btn-primary" :disabled="isSubmitting" @click="proceedToBuilder">
+            {{ isSubmitting ? 'Saving…' : 'Continue to Route Builder →' }}
+          </button>
         </div>
       </div>
     </div>
@@ -319,8 +225,9 @@ const isFragile = ref(false)
 const selectedCertificates = ref([])
 const certificatesList = ['GDP', 'IATA', 'ISO 9001', 'ISO 13485', 'ISO 28000']
 
-const showErrors = ref(false)
-const reviewMode = ref(false)
+const showErrors   = ref(false)
+const isSubmitting = ref(false)
+const submitError  = ref('')
 
 // ── Computed helpers ─────────────────────────────────────────────
 const productTypeName = computed(() => {
@@ -332,13 +239,6 @@ const CERT_REQUIREMENTS = {
   vaccines:        { required: ['GDP', 'IATA'],   recommended: ['ISO 13485'] },
   biological:      { required: ['GDP', 'IATA'],   recommended: ['ISO 13485'] },
   medical_devices: { required: ['ISO 13485'],     recommended: ['GDP', 'ISO 28000'] },
-}
-
-const TEMP_PROFILES = {
-  pharmaceutical:  { label: '2°C – 25°C (cold chain or ambient)',  warnMaxHigh: 30, warnMaxLow: -40 },
-  vaccines:        { label: '-80°C – 8°C (ultra-cold or cold chain)', warnMaxHigh: 8, warnMaxLow: -90 },
-  biological:      { label: '-80°C – 2°C (ultra-cold storage)',    warnMaxHigh: 5,  warnMaxLow: -90 },
-  medical_devices: { label: '5°C – 30°C (ambient)',                warnMaxHigh: 40, warnMaxLow: -20 },
 }
 
 const certGuidance = computed(() => {
@@ -353,109 +253,20 @@ const errors = computed(() => ({
   certificates: selectedCertificates.value.length === 0,
 }))
 
-// ── Pre-route Risk Review ─────────────────────────────────────────
-const riskReview = computed(() => {
-  const pt    = productType.value
-  const certs = selectedCertificates.value
-  const hasTempRange = tempMin.value !== '' && tempMax.value !== ''
-  const requirements = CERT_REQUIREMENTS[pt] || { required: [], recommended: [] }
-
-  // Check 1: GDP compliance (required for all pharma transport)
-  const gdpOk = certs.includes('GDP')
-
-  // Check 2: Product-specific required certs
-  const missingRequired = requirements.required.filter(c => !certs.includes(c))
-  const certsOk = missingRequired.length === 0
-
-  // Check 3: Temperature range defined
-  const tempOk = hasTempRange
-
-  // Check 4: Route defined
-  const routeOk = routeOrigin.value.trim().length > 0 && routeDestination.value.trim().length > 0
-
-  // Check 5: Package specs complete
-  const pkgOk = !!(pkg.length && pkg.width && pkg.height && pkg.weight && pkg.quantity)
-
-  const checks = [
-    {
-      key: 'gdp',
-      label: 'GDP Compliance',
-      ok: gdpOk,
-      detail: gdpOk
-        ? 'Good Distribution Practice certificate selected. Compliant with EU pharma transport requirements.'
-        : 'GDP is mandatory for pharmaceutical transport in Europe. Please add it to your required certificates.',
-    },
-    {
-      key: 'certs',
-      label: `${productTypeName.value || 'Product'} Certificates`,
-      ok: certsOk,
-      detail: certsOk
-        ? `All required certificates for ${productTypeName.value} are selected.`
-        : `Missing required certificate${missingRequired.length > 1 ? 's' : ''} for ${productTypeName.value}: ${missingRequired.join(', ')}.`,
-    },
-    {
-      key: 'temp',
-      label: 'Temperature Control',
-      ok: tempOk,
-      detail: tempOk
-        ? `Temperature range defined: ${tempMin.value}°C – ${tempMax.value}°C. Carriers will be configured for this range.`
-        : `No temperature range specified. Carriers may not set up a cold chain for this lane.${pt && TEMP_PROFILES[pt] ? ` Expected range for ${productTypeName.value}: ${TEMP_PROFILES[pt].label}.` : ''}`,
-    },
-    {
-      key: 'route',
-      label: 'Route Definition',
-      ok: routeOk,
-      detail: routeOk
-        ? `Route defined: ${routeOrigin.value} → ${routeDestination.value}.`
-        : 'Origin and/or destination not specified. Define the route to enable backup lane detection.',
-    },
-    {
-      key: 'pkg',
-      label: 'Package Specifications',
-      ok: pkgOk,
-      detail: pkgOk
-        ? `Package: ${pkg.length}×${pkg.width}×${pkg.height} cm, ${pkg.weight} kg, ${pkg.quantity} unit${pkg.quantity > 1 ? 's' : ''}.`
-        : 'Some package specifications are incomplete. Carriers need full dimensions and weight to confirm capacity.',
-    },
-  ]
-
-  const passed = checks.filter(c => c.ok).length
-  const total  = checks.length
-  const status = passed === 5 ? 'COMPLIANT'
-    : passed >= 3 ? 'CONDITIONAL'
-    : passed >= 1 ? 'NON-COMPLIANT'
-    : 'CRITICAL'
-
-  const recommendations = []
-  if (certsOk && requirements.recommended.length) {
-    const missingRec = requirements.recommended.filter(c => !certs.includes(c))
-    missingRec.forEach(c => recommendations.push(`Consider adding ${c} — recommended for ${productTypeName.value} transport.`))
-  }
-  if (isFragile.value) recommendations.push('Fragile goods marked. Ensure all intermediary nodes in the route support careful handling — confirm this during route building.')
-  if (hasTempRange && pt && TEMP_PROFILES[pt]) {
-    const profile = TEMP_PROFILES[pt]
-    const tMax = parseFloat(tempMax.value)
-    const tMin = parseFloat(tempMin.value)
-    if (!isNaN(tMax) && tMax > profile.warnMaxHigh) recommendations.push(`Maximum temperature ${tempMax.value}°C may be too high for ${productTypeName.value}. Typical range: ${profile.label}.`)
-    if (!isNaN(tMin) && tMin < profile.warnMaxLow)  recommendations.push(`Minimum temperature ${tempMin.value}°C is unusually low. Typical range for ${productTypeName.value}: ${profile.label}.`)
-  }
-
-  return { checks, passed, total, status, recommendations }
-})
-
 // ── Navigation ───────────────────────────────────────────────────
-const goToReview = () => {
+const proceedToBuilder = async () => {
   showErrors.value = true
   if (errors.value.productType || errors.value.packageSpecs || errors.value.certificates) return
-  showErrors.value = false
-  reviewMode.value = true
-  // Scroll the form panel to top
-  document.querySelector('.form-scroll')?.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
-const proceedToBuilder = () => {
-
+  showErrors.value  = false
   isSubmitting.value = true
+  submitError.value  = ''
+
+  const routeData = {
+    origin:       routeOrigin.value,
+    destination:  routeDestination.value,
+    certificates: selectedCertificates.value,
+  }
+
   try {
     const lane = await api.post('/lanes', {
       origin:       { city: routeOrigin.value },
@@ -470,17 +281,12 @@ const proceedToBuilder = () => {
       certificates: selectedCertificates.value,
       status: 'draft',
     })
-
-    // Pass origin/destination to canvas via localStorage (for display only)
-    localStorage.setItem('routeData', JSON.stringify({
-      origin:       routeOrigin.value,
-      destination:  routeDestination.value,
-      certificates: selectedCertificates.value,
-    }))
-
+    localStorage.setItem('routeData', JSON.stringify(routeData))
     router.push({ name: 'RouteCanvas', query: { laneId: lane._id } })
-  } catch (err) {
-    submitError.value = err instanceof Error ? err.message : 'Failed to save lane. Please try again.'
+  } catch {
+    // API unavailable (BYPASS_AUTH mode) — proceed without a server lane ID
+    localStorage.setItem('routeData', JSON.stringify(routeData))
+    router.push({ name: 'RouteCanvas' })
   } finally {
     isSubmitting.value = false
   }

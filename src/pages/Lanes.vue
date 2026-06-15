@@ -58,20 +58,6 @@
       </div>
     </div>
 
-    <!-- ── LOADING STATE ── -->
-    <div v-if="isLoading" class="empty-state">
-      <p class="empty-title">Loading lanes…</p>
-    </div>
-
-    <!-- ── ERROR STATE ── -->
-    <div v-else-if="error" class="empty-state">
-      <p class="empty-title">Failed to load lanes</p>
-      <p class="empty-sub">{{ error }}</p>
-      <button class="btn-empty" @click="loadLanes">Retry</button>
-    </div>
-
-    <template v-else>
-
     <!-- ── LOADING ── -->
     <div v-if="isLoading" class="loading-state">
       <div class="loading-spinner"></div>
@@ -363,6 +349,23 @@ const openComplianceStrips = reactive({})
 const openRiskPanels       = reactive({})
 const openBackupPanels     = reactive({})
 
+const statusFilter = ref('')
+const riskFilter   = ref('')
+
+const statusOptions = [
+  { value: 'COMPLIANT',     label: 'Compliant',     cls: 'fp-green' },
+  { value: 'CONDITIONAL',   label: 'Conditional',   cls: 'fp-amber' },
+  { value: 'NON-COMPLIANT', label: 'Non-Compliant', cls: 'fp-red'   },
+  { value: 'CRITICAL',      label: 'Critical',      cls: 'fp-crit'  },
+]
+
+const riskOptions = [
+  { value: 'critical', label: 'Critical', cls: 'fp-red'  },
+  { value: 'warning',  label: 'Warning',  cls: 'fp-amber' },
+  { value: 'info',     label: 'Info',     cls: 'fp-blue' },
+  { value: 'ok',       label: 'Clear',    cls: 'fp-green' },
+]
+
 const normalizeApiLane = (l) => ({
   ...l,
   id:          l._id  || l.id,
@@ -370,16 +373,32 @@ const normalizeApiLane = (l) => ({
   createdAt:   l.createdAt  || l.created_at,
 })
 
+const mergeLocalLanes = (base) => {
+  try {
+    const raw = localStorage.getItem('savedLanes')
+    if (!raw) return base
+    const local = JSON.parse(raw)
+    if (!Array.isArray(local)) return base
+    const existingIds = new Set(base.map(l => String(l.id)))
+    const fresh = local
+      .map(l => ({ ...l, id: String(l.id), _local: true }))
+      .filter(l => !existingIds.has(l.id))
+    return [...base, ...fresh]
+  } catch {
+    return base
+  }
+}
+
 const loadLanes = async () => {
   isLoading.value  = true
   loadError.value  = ''
   try {
     const data = await api.get('/lanes')
-    allLanes.value = Array.isArray(data) ? data.map(normalizeApiLane) : []
-    if (!allLanes.value.length) allLanes.value = lanesData
+    const base = Array.isArray(data) ? data.map(normalizeApiLane) : lanesData
+    allLanes.value = mergeLocalLanes(base)
   } catch {
     // API unavailable (e.g. BYPASS_AUTH mode) — fall back to demo data
-    allLanes.value = lanesData
+    allLanes.value = mergeLocalLanes(lanesData)
   } finally {
     isLoading.value = false
   }
@@ -391,17 +410,30 @@ const onSearchBlur = () => { setTimeout(() => { searchFocused.value = false }, 1
 
 // ── Computed ────────────────────────────────────────────────────
 const displayedLanes = computed(() => {
-  if (!searchQuery.value.trim()) return allLanes.value
-  const q = searchQuery.value.trim().toLowerCase()
-  return allLanes.value.filter(l =>
-    laneName(l).toLowerCase().includes(q) ||
-    (l.origin?.city || '').toLowerCase().includes(q) ||
-    (l.destination?.city || '').toLowerCase().includes(q) ||
-    (l.nodes || []).some(n =>
-      (n.location || '').toLowerCase().includes(q) ||
-      (n.company  || '').toLowerCase().includes(q)
+  let lanes = allLanes.value
+
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.trim().toLowerCase()
+    lanes = lanes.filter(l =>
+      laneName(l).toLowerCase().includes(q) ||
+      (l.origin?.city || '').toLowerCase().includes(q) ||
+      (l.destination?.city || '').toLowerCase().includes(q) ||
+      (l.nodes || []).some(n =>
+        (n.location || '').toLowerCase().includes(q) ||
+        (n.company  || '').toLowerCase().includes(q)
+      )
     )
-  )
+  }
+
+  if (statusFilter.value) {
+    lanes = lanes.filter(l => complianceMap.value[l.id]?.status === statusFilter.value)
+  }
+
+  if (riskFilter.value) {
+    lanes = lanes.filter(l => laneRisk(l).level === riskFilter.value)
+  }
+
+  return lanes
 })
 
 const companySuggestions = computed(() => searchEntities(searchQuery.value))
@@ -627,6 +659,29 @@ const transportClass = (t) => t || 'road'
   transition: background .15s;
 }
 .btn-new:hover { background: #1e293b; }
+
+/* ── Filter bar ─────────────────────────────────────────────────── */
+.filter-bar {
+  display: flex; align-items: center; gap: 20px; padding: 7px 28px;
+  background: #fff; border-bottom: 1px solid #e3e5e8; flex-shrink: 0; flex-wrap: wrap;
+}
+.filter-group { display: flex; align-items: center; gap: 6px; }
+.filter-label {
+  font-size: 10.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;
+  letter-spacing: .07em; white-space: nowrap;
+}
+.filter-pill {
+  height: 25px; padding: 0 10px; border-radius: 5px; font-size: 11px; font-weight: 500;
+  border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b;
+  cursor: pointer; font-family: inherit; transition: all .13s; white-space: nowrap;
+}
+.filter-pill:hover { border-color: #cbd5e1; background: #f1f5f9; color: #334155; }
+.filter-pill.active { border-color: transparent; color: #fff; }
+.filter-pill.fp-green.active  { background: #15803d; }
+.filter-pill.fp-amber.active  { background: #d97706; }
+.filter-pill.fp-red.active    { background: #dc2626; }
+.filter-pill.fp-crit.active   { background: #991b1b; }
+.filter-pill.fp-blue.active   { background: #2563eb; }
 
 /* ── Loading / Error ───────────────────────────────────────────── */
 .loading-state { display: flex; align-items: center; gap: 10px; padding: 48px 28px; color: #64748b; font-size: 13px; }
