@@ -4,7 +4,7 @@
     <!-- LEFT INFO PANEL (step 2 of 2) -->
     <div class="step-panel">
       <div class="step-content">
-        <div class="step-pill">Step 2 of 2</div>
+        <div class="step-pill">Step 3 of 3</div>
         <h2 class="panel-title">Route Builder</h2>
         <p class="panel-desc">
           Visually assemble your supply chain lane. Place, connect and configure each logistics node.
@@ -19,6 +19,16 @@
             <div class="tl-text">
               <strong>Requirements</strong>
               <span>Product specs &amp; constraints</span>
+            </div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-icon">
+              <div class="tl-dot done">✓</div>
+              <div class="tl-line"></div>
+            </div>
+            <div class="tl-text">
+              <strong>Risk Review</strong>
+              <span>Pre-route compliance check</span>
             </div>
           </div>
           <div class="tl-item">
@@ -247,11 +257,29 @@
             <template v-if="editingFormData.type === 'origin' || editingFormData.type === 'destination'">
               <div class="form-group">
                 <label>{{ editingFormData.type === 'origin' ? 'Origin Location' : 'Destination Location' }}</label>
-                <input v-model="editingFormData.details.location" class="modern-input" placeholder="City, Country" />
+                <div class="ac-wrap">
+                  <input v-model="editingFormData.details.location" class="modern-input" placeholder="City, Country"
+                    @input="onLocationInput" @blur="onLocationBlur" autocomplete="off" />
+                  <div class="ac-drop" v-if="locationSugs.length">
+                    <div v-for="s in locationSugs" :key="s.id" class="ac-item" @mousedown.prevent="selectLocation(s)">
+                      <span class="ac-label">{{ s.label }}</span>
+                      <span class="ac-sub">{{ s.sub }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="form-group">
                 <label>{{ editingFormData.type === 'origin' ? 'Sending Company' : 'Receiving Company' }}</label>
-                <input v-model="editingFormData.details.company" class="modern-input" placeholder="e.g. PharmaCorp Inc." />
+                <div class="ac-wrap">
+                  <input v-model="editingFormData.details.company" class="modern-input" placeholder="e.g. DHL Supply Chain"
+                    @input="onCompanyInput" @blur="onCompanyBlur" autocomplete="off" />
+                  <div class="ac-drop" v-if="companySugs.length">
+                    <div v-for="s in companySugs" :key="s.id" class="ac-item" @mousedown.prevent="selectCompany(s)">
+                      <span class="ac-label">{{ s.name }}</span>
+                      <span class="ac-sub">{{ s.certificates?.join(' · ') || 'No certs listed' }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="form-group">
                 <label>Facility Type</label>
@@ -268,7 +296,16 @@
             <template v-if="editingFormData.type === 'intermediary'">
               <div class="form-group">
                 <label>Current Location</label>
-                <input v-model="editingFormData.details.location" class="modern-input" placeholder="City, Airport, Port…" />
+                <div class="ac-wrap">
+                  <input v-model="editingFormData.details.location" class="modern-input" placeholder="City, Airport, Port…"
+                    @input="onLocationInput" @blur="onLocationBlur" autocomplete="off" />
+                  <div class="ac-drop" v-if="locationSugs.length">
+                    <div v-for="s in locationSugs" :key="s.id" class="ac-item" @mousedown.prevent="selectLocation(s)">
+                      <span class="ac-label">{{ s.label }}</span>
+                      <span class="ac-sub">{{ s.sub }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="form-group">
                 <label>Transport / Facility Type</label>
@@ -282,8 +319,16 @@
               </div>
               <div class="form-group">
                 <label>Company <span class="lbl-note">(certified carriers)</span></label>
-                <input v-model="editingFormData.details.company" class="modern-input" placeholder="e.g. DHL, FedEx…" />
-                <p class="field-hint">Certified companies matching your certificates will appear here in a future update.</p>
+                <div class="ac-wrap">
+                  <input v-model="editingFormData.details.company" class="modern-input" placeholder="Search certified carriers…"
+                    @input="onCompanyInput" @blur="onCompanyBlur" autocomplete="off" />
+                  <div class="ac-drop" v-if="companySugs.length">
+                    <div v-for="s in companySugs" :key="s.id" class="ac-item" @mousedown.prevent="selectCompany(s)">
+                      <span class="ac-label">{{ s.name }}</span>
+                      <span class="ac-sub">{{ s.certificates?.join(' · ') || 'No certs listed' }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </template>
             
@@ -416,6 +461,7 @@
 import { ref, computed, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import lanesData from '@/data/lanes.json'
+import { searchCompanies, searchLocations } from '@/data/companies'
 
 const router = useRouter()
 const route  = useRoute()
@@ -604,12 +650,53 @@ const openModal = (index) => {
   if (!editingFormData.value.certifications) editingFormData.value.certifications = []
   if (!editingFormData.value.details.facilityType) editingFormData.value.details.facilityType = 'warehouse'
 }
-const closeModal      = () => { editingNodeIndex.value = null; editingFormData.value = null }
+const closeModal      = () => {
+  editingNodeIndex.value = null
+  editingFormData.value  = null
+  companySugs.value  = []
+  locationSugs.value = []
+}
 const saveNodeDetails = () => {
   if (editingNodeIndex.value !== null && editingFormData.value)
     nodes.value[editingNodeIndex.value] = { ...editingFormData.value }
   closeModal()
 }
+
+// ─── Autocomplete ─────────────────────────────────────────────────
+const companySugs  = ref([])
+const locationSugs = ref([])
+
+const onCompanyInput = () => {
+  const q = editingFormData.value?.details?.company || ''
+  companySugs.value = searchCompanies(q)
+}
+const onLocationInput = () => {
+  const q = editingFormData.value?.details?.location || ''
+  locationSugs.value = searchLocations(q)
+}
+
+const selectCompany = (s) => {
+  if (!editingFormData.value) return
+  editingFormData.value.details.company = s.name
+  companySugs.value = []
+  // Pre-fill certifications that overlap with route requirements (if none yet selected)
+  if (!editingFormData.value.certifications?.length && s.certificates?.length) {
+    const routeCerts = requiredCertifications.value || []
+    editingFormData.value.certifications = s.certificates.filter(c => routeCerts.includes(c))
+  }
+}
+const selectLocation = (s) => {
+  if (!editingFormData.value) return
+  editingFormData.value.details.location = s.city
+  locationSugs.value = []
+  if (!editingFormData.value.details.company && s.company) {
+    editingFormData.value.details.company = s.company
+  }
+  if (s.facilityType) editingFormData.value.details.facilityType = s.facilityType
+}
+
+const onCompanyBlur  = () => { setTimeout(() => { companySugs.value  = [] }, 150) }
+const onLocationBlur = () => { setTimeout(() => { locationSugs.value = [] }, 150) }
 
 // ─── Backup modal ─────────────────────────────────────────────────
 const editingBackupRef  = reactive({ nodeIdx: null, bkIdx: null })
@@ -1294,6 +1381,22 @@ onUnmounted(() => {
 .lbl-note    { font-size: 11px; font-weight: 400; color: var(--text-muted); }
 
 .modern-input { width: 100%; padding: 10px 13px; border: 1.5px solid var(--border-color); border-radius: 8px; font-size: 14px; color: var(--text-main); box-sizing: border-box; font-family: inherit; transition: all var(--transition-fast); background: #fafbfc; }
+
+/* ── Autocomplete dropdown ── */
+.ac-wrap { position: relative; }
+.ac-drop {
+  position: absolute; top: calc(100% + 3px); left: 0; right: 0; z-index: 200;
+  background: #fff; border: 1px solid var(--border-color); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12); overflow: hidden;
+}
+.ac-item {
+  display: flex; flex-direction: column; gap: 2px; padding: 9px 13px;
+  cursor: pointer; transition: background .1s; border-bottom: 1px solid #f1f3f6;
+}
+.ac-item:last-child { border-bottom: none; }
+.ac-item:hover { background: #f8fafc; }
+.ac-label { font-size: 13px; font-weight: 600; color: var(--text-main); }
+.ac-sub   { font-size: 11px; color: #94a3b8; }
 .modern-input:focus { outline: none; border-color: var(--primary); background: white; box-shadow: 0 0 0 3px var(--primary-glow); }
 .field-hint  { margin: 4px 0 0; font-size: 11px; color: var(--text-muted); font-style: italic; }
 

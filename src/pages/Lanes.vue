@@ -1,17 +1,33 @@
 <template>
   <div class="lanes-page">
 
-    <!-- ── COMPACT HEADER ── -->
+    <!-- ── HEADER ── -->
     <header class="page-header">
       <div class="hdr-left">
         <h1 class="page-title">Supply Chain Lanes</h1>
         <span class="count-pill">{{ allLanes.length }}</span>
       </div>
       <div class="hdr-right">
-        <div class="search-wrap">
-          <svg class="s-ico" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input v-model="searchQuery" type="text" placeholder="Search by city…" class="search-inp" />
-          <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''">×</button>
+        <div class="search-outer">
+          <div class="search-wrap">
+            <svg class="s-ico" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input v-model="searchQuery" type="text" placeholder="Search lanes, companies, cities…" class="search-inp" @focus="searchFocused = true" @blur="onSearchBlur" />
+            <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''; searchFocused = false">×</button>
+          </div>
+          <!-- Suggestions dropdown -->
+          <div class="suggestions-drop" v-if="searchFocused && companySuggestions.length">
+            <div
+              v-for="s in companySuggestions" :key="s.id"
+              class="suggestion-item"
+              @mousedown.prevent="searchQuery = s.city || s.company; searchFocused = false"
+            >
+              <span class="sug-kind" :class="s._kind">{{ s._kind }}</span>
+              <div class="sug-text">
+                <span class="sug-label">{{ s._label }}</span>
+                <span class="sug-sub">{{ s._sub }}</span>
+              </div>
+            </div>
+          </div>
         </div>
         <button class="btn-new" @click="$router.push('/create')">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
@@ -20,594 +36,892 @@
       </div>
     </header>
 
-    <!-- ── SEARCH CONTEXT ── -->
-    <div v-if="searchQuery.trim()" class="search-ctx">
-      {{ displayedLanes.length }} result{{ displayedLanes.length !== 1 ? 's' : '' }} for
-      <strong>"{{ searchQuery }}"</strong>
+    <!-- ── LOADING ── -->
+    <div v-if="isLoading" class="loading-state">
+      <div class="loading-spinner"></div>
+      <span>Loading lanes…</span>
     </div>
 
-    <!-- ── EMPTY STATE ── -->
-    <div v-if="displayedLanes.length === 0" class="empty-state">
-      <div class="empty-icon-wrap">
-        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    <!-- ── ERROR ── -->
+    <div v-else-if="loadError" class="error-state">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      <span>{{ loadError }}</span>
+      <button class="err-retry" @click="loadLanes">Retry</button>
+    </div>
+
+    <template v-else>
+      <!-- ── SEARCH CONTEXT ── -->
+      <div v-if="searchQuery.trim()" class="search-ctx">
+        {{ displayedLanes.length }} result{{ displayedLanes.length !== 1 ? 's' : '' }} for
+        <strong>"{{ searchQuery }}"</strong>
       </div>
-      <p class="empty-title">{{ searchQuery ? 'No lanes found' : 'No lanes yet' }}</p>
-      <p class="empty-sub">{{ searchQuery ? 'Try a different city name.' : 'Create your first supply chain lane to get started.' }}</p>
-      <button v-if="!searchQuery" class="btn-empty" @click="$router.push('/create')">New Lane</button>
-    </div>
 
-    <!-- ── LANES LIST ── -->
-    <div v-else class="lanes-list">
-      <article
-        v-for="lane in displayedLanes"
-        :key="lane.id"
-        class="lane-card"
-      >
-        <div class="card-stripe" :class="productClass(lane.productType)"></div>
-
-        <div class="card-inner">
-
-          <!-- ROW 1: Route cities + product pill + open button -->
-          <div class="row-top">
-            <div class="route-info">
-              <span class="city">{{ lane.origin.city }}</span>
-              <svg class="arr-ico" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-              <span class="city">{{ lane.destination.city }}</span>
-              <span class="product-pill" :class="productClass(lane.productType)">{{ lane.productType }}</span>
-            </div>
-            <button class="open-btn" @click="$router.push({ path: '/canvas', query: { laneId: lane.id } })">
-              Open Lane
-              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-            </button>
-          </div>
-
-          <!-- ROW 2: Meta -->
-          <div class="row-meta">
-            <span class="meta-companies">{{ lane.origin.company }} → {{ lane.destination.company }}</span>
-            <span class="dot-sep">·</span>
-            <span class="meta-text">{{ lane.origin.country }} → {{ lane.destination.country }}</span>
-            <span class="dot-sep">·</span>
-            <span class="meta-text">{{ lane.nodes.length }} nodes</span>
-            <span class="dot-sep">·</span>
-            <span class="meta-text">{{ formatDate(lane.createdAt) }}</span>
-          </div>
-
-          <!-- ROW 3: Transport track -->
-          <div class="route-track">
-            <template v-for="(node, idx) in laneNodes[lane.id]" :key="node.id">
-              <div
-                class="track-stop"
-                :class="[
-                  node.isEllipsis ? 'is-ellipsis' : node.type,
-                  { 'is-origin': !node.isEllipsis && idx === 0 },
-                  { 'is-dest':   !node.isEllipsis && idx === laneNodes[lane.id].length - 1 },
-                ]"
-                :title="!node.isEllipsis ? (node.location + (node.company ? ' · ' + node.company : '')) : ''"
-              >
-                <div class="stop-dot"></div>
-                <span class="stop-lbl">{{ node.isEllipsis ? '+' + node.count : node.location }}</span>
-              </div>
-              <div
-                v-if="idx < laneNodes[lane.id].length - 1"
-                class="track-line"
-                :class="(!node.isEllipsis && node.transport === 'air') ? 'seg-air' : 'seg-ground'"
-              ></div>
-            </template>
-          </div>
-
-          <!-- ROW 4: Certificates -->
-          <div class="row-certs">
-            <span v-for="cert in lane.certificates" :key="cert" class="cert-tag">{{ cert }}</span>
-          </div>
-
+      <!-- ── EMPTY STATE ── -->
+      <div v-if="displayedLanes.length === 0" class="empty-state">
+        <div class="empty-icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
         </div>
-      </article>
-    </div>
+        <p class="empty-title">{{ searchQuery ? 'No lanes found' : 'No lanes yet' }}</p>
+        <p class="empty-sub">{{ searchQuery ? 'Try a different search term.' : 'Create your first supply chain lane to get started.' }}</p>
+        <button v-if="!searchQuery" class="btn-empty" @click="$router.push('/create')">New Lane</button>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════════
+           LANE SECTIONS
+           ══════════════════════════════════════════════════════════ -->
+      <div v-else class="lanes-list">
+        <section
+          v-for="lane in displayedLanes"
+          :key="lane.id"
+          class="lane-section"
+          :class="{
+            'has-critical': complianceMap[lane.id]?.status === 'CRITICAL',
+            'has-noncompliant': complianceMap[lane.id]?.status === 'NON-COMPLIANT',
+          }"
+        >
+          <!-- ── LANE TITLE BAR ── -->
+          <div class="lane-title-bar">
+            <div class="lane-title-left">
+              <!-- Compliance badge (primary rating) -->
+              <span class="comp-badge" :class="complianceMap[lane.id]?.status">
+                <span class="comp-status">{{ complianceMap[lane.id]?.status }}</span>
+                <span class="comp-fraction">{{ complianceMap[lane.id]?.passed }}/{{ complianceMap[lane.id]?.total }}</span>
+              </span>
+              <span class="lane-name">{{ laneName(lane) }}</span>
+              <span class="product-pill" :class="productClass(laneProduct(lane))">{{ laneProduct(lane) }}</span>
+              <span v-if="lane.status && lane.status !== 'draft'" class="lane-status-badge" :class="'ls-' + lane.status">{{ lane.status }}</span>
+              <span class="lane-date">{{ formatDate(laneDate(lane)) }}</span>
+            </div>
+            <div class="lane-title-right">
+              <span v-for="cert in (lane.certificates || [])" :key="cert" class="cert-tag">{{ cert }}</span>
+              <button class="open-btn" @click="$router.push({ path: '/canvas', query: { laneId: lane.id } })">
+                Edit Route
+                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- ── COMPLIANCE STRIP (collapsible) ── -->
+          <div class="compliance-section">
+            <div class="cs-hdr" @click="toggleComplianceStrip(lane.id)">
+              <div class="cs-hdr-left">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="cs-shield-icon"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span class="cs-hdr-label">Compliance</span>
+                <!-- 5 pills — always visible in header -->
+                <div class="cs-pills">
+                  <span
+                    v-for="c in complianceMap[lane.id]?.checks"
+                    :key="c.key"
+                    class="cs-pill"
+                    :class="c.skip ? 'skip' : c.ok ? 'pass' : 'fail'"
+                    :title="c.label"
+                  >
+                    <span class="cs-pill-icon">{{ c.skip ? '○' : c.ok ? '✓' : '✗' }}</span>
+                    <span class="cs-pill-label">{{ c.label.split(' ')[0] }}</span>
+                  </span>
+                </div>
+              </div>
+              <svg class="cs-chevron" :class="{ open: openComplianceStrips[lane.id] }" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+
+            <!-- Expanded: one row per check -->
+            <div v-if="openComplianceStrips[lane.id]" class="cs-body">
+              <div
+                v-for="c in complianceMap[lane.id]?.checks"
+                :key="c.key"
+                class="cs-row"
+                :class="c.skip ? 'skip' : c.ok ? 'pass' : 'fail'"
+              >
+                <span class="cs-row-icon">{{ c.skip ? '○' : c.ok ? '✓' : '✗' }}</span>
+                <div class="cs-row-content">
+                  <span class="cs-row-label">{{ c.label }}</span>
+                  <span class="cs-row-detail">
+                    <template v-if="c.skip">Not applicable for this lane</template>
+                    <template v-else-if="c.ok">All clear</template>
+                    <template v-else>{{ c.fails.join(' · ') }}</template>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── RISK SUMMARY STRIP (node-level alerts, collapsible) ── -->
+          <div v-if="laneRisk(lane).alerts.length > 0" class="risk-strip">
+            <div class="risk-strip-hdr" @click="toggleRiskPanel(lane.id)">
+              <div class="risk-strip-left">
+                <svg class="risk-strip-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                <span class="risk-strip-count">{{ laneRisk(lane).alerts.length }} risk alert{{ laneRisk(lane).alerts.length !== 1 ? 's' : '' }}</span>
+                <span class="risk-strip-breakdown">
+                  <span v-if="laneRisk(lane).counts.critical" class="rb critical">{{ laneRisk(lane).counts.critical }} critical</span>
+                  <span v-if="laneRisk(lane).counts.warning"  class="rb warning">{{ laneRisk(lane).counts.warning }} warning</span>
+                  <span v-if="laneRisk(lane).counts.info"     class="rb info">{{ laneRisk(lane).counts.info }} info</span>
+                </span>
+              </div>
+              <svg class="risk-strip-chevron" :class="{ open: openRiskPanels[lane.id] }" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+            <div v-if="openRiskPanels[lane.id]" class="risk-strip-body">
+              <div v-for="(alert, ai) in laneRisk(lane).alerts" :key="ai" class="risk-alert-row" :class="alert.severity">
+                <span class="ra-dot"></span>
+                <span class="ra-node">{{ alert.node }}</span>
+                <span class="ra-msg">{{ alert.message }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── CONNECTED NODE DIAGRAM ── -->
+          <div class="diagram-scroll">
+            <div class="diagram-track">
+              <template v-for="(node, idx) in lane.nodes" :key="node.id">
+
+                <!-- NODE CARD (redesigned key-value layout) -->
+                <div class="node-card" :class="[
+                  nodeTypeClass(node, idx, lane.nodes.length),
+                  validationClass(node.validationStatus),
+                  { 'has-alerts': nodeAlerts(node, lane).length > 0 },
+                ]">
+                  <!-- Header: facility icon + location name + validation dot -->
+                  <div class="card-hdr">
+                    <div class="card-hdr-left">
+                      <span class="fac-icon">{{ facilityIcon(node.type) }}</span>
+                      <span class="card-hdr-loc">{{ node.location }}</span>
+                    </div>
+                    <span class="validation-dot" :class="node.validationStatus" :title="validationLabel(node.validationStatus)"></span>
+                  </div>
+
+                  <!-- Role badge -->
+                  <div class="card-role-row">
+                    <span class="type-badge" :class="nodeTypeClass(node, idx, lane.nodes.length)">
+                      {{ nodeTypeLabel(node, idx, lane.nodes.length) }}
+                    </span>
+                  </div>
+
+                  <!-- Key-value data rows -->
+                  <div class="card-kv-list">
+                    <div class="kv-row">
+                      <span class="kv-label">Company</span>
+                      <span class="kv-val" :class="{ 'kv-unverified': !carrierKnown(node.company) }">
+                        {{ node.company || '—' }}
+                        <span v-if="node.company && !carrierKnown(node.company)" class="kv-warn-icon" title="Not in certified carrier database">!</span>
+                      </span>
+                    </div>
+                    <div class="kv-row">
+                      <span class="kv-label">Type</span>
+                      <span class="kv-val">{{ facilityLabel(node.type) }}</span>
+                    </div>
+                    <div class="kv-row">
+                      <span class="kv-label">Temp</span>
+                      <span v-if="node.temperatureControl" class="kv-val kv-temp">{{ node.temperatureControl.min }}°C – {{ node.temperatureControl.max }}°C</span>
+                      <span v-else class="kv-val kv-muted">No control</span>
+                    </div>
+                    <div class="kv-row" v-if="node.transport">
+                      <span class="kv-label">Via</span>
+                      <span class="kv-val">{{ transportIcon(node.transport) }} {{ node.transport }}</span>
+                    </div>
+                    <div class="kv-row" v-if="node.fragile">
+                      <span class="kv-label">Handling</span>
+                      <span class="kv-val kv-fragile">Fragile</span>
+                    </div>
+                  </div>
+
+                  <!-- Per-node risk alerts (inline, max 2) -->
+                  <div class="node-alerts" v-if="nodeAlerts(node, lane).length > 0">
+                    <div v-for="(a, ai) in nodeAlerts(node, lane).slice(0, 2)" :key="ai" class="node-alert" :class="a.severity">
+                      <span class="na-dot"></span>
+                      <span class="na-text">{{ a.short }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Certificates: required shown as pass/fail, extra in neutral -->
+                  <div class="card-certs">
+                    <template v-if="(lane.certificates || []).length > 0">
+                      <span
+                        v-for="c in (lane.certificates || [])"
+                        :key="'req-' + c"
+                        class="node-cert"
+                        :class="(node.certificates || []).includes(c) ? 'cert-ok' : 'cert-missing'"
+                        :title="(node.certificates || []).includes(c) ? 'Required — held' : 'Required — MISSING'"
+                      >{{ c }}</span>
+                      <span
+                        v-for="c in (node.certificates || []).filter(c => !(lane.certificates || []).includes(c))"
+                        :key="'ext-' + c"
+                        class="node-cert cert-extra"
+                      >{{ c }}</span>
+                    </template>
+                    <span v-else-if="node.certificates && node.certificates.length">
+                      <span v-for="c in node.certificates" :key="c" class="node-cert cert-extra">{{ c }}</span>
+                    </span>
+                    <span v-else class="node-cert cert-missing">No certs</span>
+                  </div>
+                </div>
+
+                <!-- TRANSPORT CONNECTOR -->
+                <div v-if="idx < lane.nodes.length - 1" class="connector-wrap">
+                  <div class="connector-line" :class="transportClass(lane.nodes[idx + 1].transport)"></div>
+                  <button class="connector-badge" :class="transportClass(lane.nodes[idx + 1].transport)" :title="'Transport: ' + lane.nodes[idx + 1].transport">
+                    {{ transportIcon(lane.nodes[idx + 1].transport) }}
+                    <span class="connector-label">{{ lane.nodes[idx + 1].transport }}</span>
+                  </button>
+                  <div class="connector-line" :class="transportClass(lane.nodes[idx + 1].transport)"></div>
+                </div>
+
+              </template>
+
+              <!-- ADD NODE -->
+              <button class="add-node-btn" @click="$router.push({ path: '/canvas', query: { laneId: lane.id } })" title="Add a node to this lane">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- ── BACKUP ROUTES ── -->
+          <div v-if="backupLanesFor(lane).length > 0" class="backup-section">
+            <div class="backup-hdr" @click="toggleBackup(lane.id)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              <span>{{ backupLanesFor(lane).length }} backup route{{ backupLanesFor(lane).length !== 1 ? 's' : '' }} for {{ lane.origin?.city }} → {{ lane.destination?.city }}</span>
+              <svg class="backup-chevron" :class="{ open: openBackupPanels[lane.id] }" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+            <div v-if="openBackupPanels[lane.id]" class="backup-list">
+              <div v-for="bl in backupLanesFor(lane)" :key="bl.id" class="backup-row">
+                <span class="comp-badge sm" :class="complianceMap[bl.id]?.status">
+                  {{ complianceMap[bl.id]?.status }}
+                  <span class="comp-fraction">{{ complianceMap[bl.id]?.passed }}/{{ complianceMap[bl.id]?.total }}</span>
+                </span>
+                <div class="backup-info">
+                  <span class="backup-name">{{ laneName(bl) }}</span>
+                  <span class="backup-meta">{{ bl.nodes?.length }} stops · {{ laneProduct(bl) }} · {{ formatDate(laneDate(bl)) }}</span>
+                </div>
+                <button class="backup-view-btn" @click="$router.push({ path: '/canvas', query: { laneId: bl.id } })">View →</button>
+              </div>
+            </div>
+          </div>
+
+        </section>
+      </div>
+    </template>
 
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, reactive, onMounted } from 'vue'
+import { api } from '../services/api'
 import lanesData from '@/data/lanes.json'
+import { TRANSPORT_COMPANIES, WAREHOUSES, AIRPORTS, searchEntities } from '@/data/companies'
 
-const router      = useRouter()
-const allLanes    = ref(lanesData)
+// ── Company certificate lookup map ─────────────────────────────
+const CARRIER_CERTS = new Map()
+TRANSPORT_COMPANIES.forEach(c => CARRIER_CERTS.set(c.name, c.certificates))
+WAREHOUSES.forEach(w  => { if (!CARRIER_CERTS.has(w.company)) CARRIER_CERTS.set(w.company, w.certificates) })
+AIRPORTS.forEach(a   => { if (!CARRIER_CERTS.has(a.company)) CARRIER_CERTS.set(a.company, a.certificates) })
+
+const carrierKnown = (companyName) => companyName && CARRIER_CERTS.has(companyName)
+
+// ── State ───────────────────────────────────────────────────────
+const allLanes    = ref([])
+const isLoading   = ref(true)
+const loadError   = ref('')
 const searchQuery = ref('')
+const searchFocused = ref(false)
 
+const openComplianceStrips = reactive({})
+const openRiskPanels       = reactive({})
+const openBackupPanels     = reactive({})
+
+const normalizeApiLane = (l) => ({
+  ...l,
+  id:          l._id  || l.id,
+  productType: l.productType || l.cargoProfile?.productType,
+  createdAt:   l.createdAt  || l.created_at,
+})
+
+const loadLanes = async () => {
+  isLoading.value  = true
+  loadError.value  = ''
+  try {
+    const data = await api.get('/lanes')
+    allLanes.value = Array.isArray(data) ? data.map(normalizeApiLane) : []
+    if (!allLanes.value.length) allLanes.value = lanesData
+  } catch {
+    // API unavailable (e.g. BYPASS_AUTH mode) — fall back to demo data
+    allLanes.value = lanesData
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(loadLanes)
+
+const onSearchBlur = () => { setTimeout(() => { searchFocused.value = false }, 150) }
+
+// ── Computed ────────────────────────────────────────────────────
 const displayedLanes = computed(() => {
   if (!searchQuery.value.trim()) return allLanes.value
   const q = searchQuery.value.trim().toLowerCase()
   return allLanes.value.filter(l =>
-    l.origin.city.toLowerCase().includes(q) ||
-    l.destination.city.toLowerCase().includes(q)
+    laneName(l).toLowerCase().includes(q) ||
+    (l.origin?.city || '').toLowerCase().includes(q) ||
+    (l.destination?.city || '').toLowerCase().includes(q) ||
+    (l.nodes || []).some(n =>
+      (n.location || '').toLowerCase().includes(q) ||
+      (n.company  || '').toLowerCase().includes(q)
+    )
   )
 })
 
-const laneNodes = computed(() => {
-  const result = {}
-  allLanes.value.forEach(lane => {
-    const nodes = lane.nodes
-    if (nodes.length <= 7) {
-      result[lane.id] = nodes.map(n => ({ ...n, isEllipsis: false }))
-    } else {
-      result[lane.id] = [
-        ...nodes.slice(0, 4).map(n => ({ ...n, isEllipsis: false })),
-        { id: `ellipsis-${lane.id}`, isEllipsis: true, count: nodes.length - 6 },
-        ...nodes.slice(-2).map(n => ({ ...n, isEllipsis: false })),
-      ]
-    }
-  })
-  return result
+const companySuggestions = computed(() => searchEntities(searchQuery.value))
+
+const complianceMap = computed(() => {
+  const map = {}
+  allLanes.value.forEach(l => { map[l.id] = laneCompliance(l) })
+  return map
 })
 
-const productClass = (type) => {
-  const map = {
-    'Pharmaceutical':  'pharma',
-    'Vaccines':        'vaccines',
-    'Biological':      'biological',
-    'Medical Devices': 'medical',
-  }
-  return map[type] ?? 'pharma'
+// ── 5-Check Compliance Engine ────────────────────────────────────
+const laneCompliance = (lane) => {
+  const required = lane.certificates || []
+  const nodes    = lane.nodes        || []
+
+  // 1. Certificate coverage — every node holds all required lane certs
+  const certFails = []
+  nodes.forEach(n => {
+    const missing = required.filter(c => !(n.certificates || []).includes(c))
+    if (missing.length) certFails.push(`${n.location}: missing ${missing.join(', ')}`)
+  })
+
+  // 2. Node validation — all nodes validated
+  const validationFails = nodes
+    .filter(n => n.validationStatus !== 'validated')
+    .map(n => `${n.location}: ${n.validationStatus === 'pending' ? 'pending review' : 'not validated'}`)
+
+  // 3. Temperature chain — if any node has temp control, all nodes must
+  const laneHasTemp = nodes.some(n => n.temperatureControl)
+  const tempFails   = laneHasTemp
+    ? nodes.filter(n => !n.temperatureControl).map(n => `${n.location}: no temperature control`)
+    : []
+
+  // 4. Carrier compliance — company in DB and holds required certs
+  const carrierFails = []
+  nodes.forEach(n => {
+    if (!n.company) { carrierFails.push(`No company at ${n.location}`); return }
+    const dbCerts = CARRIER_CERTS.get(n.company)
+    if (!dbCerts) { carrierFails.push(`${n.company}: not in certified carrier database`); return }
+    const missing = required.filter(c => !dbCerts.includes(c))
+    if (missing.length) carrierFails.push(`${n.company}: missing ${missing.join(', ')}`)
+  })
+
+  // 5. Air transport — all air nodes hold IATA
+  const hasAirNodes = nodes.some(n => n.transport === 'air')
+  const airFails    = nodes
+    .filter(n => n.transport === 'air' && !(n.certificates || []).includes('IATA'))
+    .map(n => `${n.location}: air transport without IATA`)
+
+  const checks = [
+    { key: 'certCoverage', label: 'Certificate Coverage', ok: certFails.length === 0,       fails: certFails,       skip: false },
+    { key: 'validation',   label: 'Node Validation',      ok: validationFails.length === 0,  fails: validationFails, skip: false },
+    { key: 'tempChain',    label: 'Temperature Chain',    ok: tempFails.length === 0,        fails: tempFails,       skip: !laneHasTemp },
+    { key: 'carrier',      label: 'Carrier Compliance',   ok: carrierFails.length === 0,     fails: carrierFails,    skip: false },
+    { key: 'airTransport', label: 'Air Transport',        ok: airFails.length === 0,         fails: airFails,        skip: !hasAirNodes },
+  ]
+
+  const passed = checks.filter(c => c.ok).length
+  const total  = checks.length
+  const status = passed === 5 ? 'COMPLIANT'
+    : passed >= 3 ? 'CONDITIONAL'
+    : passed >= 1 ? 'NON-COMPLIANT'
+    : 'CRITICAL'
+
+  return { status, passed, total, checks }
 }
 
-const formatDate = (dateStr) =>
-  new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+// ── Existing Risk Engine (node-level alerts) ─────────────────────
+const nodeAlerts = (node, lane) => {
+  const alerts = []
+  const loc = node.location || 'Unknown'
+
+  if (node.validationStatus === 'not_validated') {
+    alerts.push({ severity: 'critical', short: 'Not validated', message: `${loc} has not been validated. Shipments may be non-compliant.`, node: loc })
+  }
+  if (node.validationStatus === 'pending') {
+    alerts.push({ severity: 'warning', short: 'Pending review', message: `${loc} is awaiting validation review.`, node: loc })
+  }
+
+  const required = lane.certificates || []
+  const held     = node.certificates || []
+  const missing  = required.filter(c => !held.includes(c))
+  if (missing.length) {
+    alerts.push({ severity: 'critical', short: `Missing ${missing.join(', ')}`, message: `${loc} is missing required certificate${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}.`, node: loc })
+  }
+
+  const laneHasTemp = lane.nodes.some(n => n.temperatureControl)
+  if (laneHasTemp && !node.temperatureControl) {
+    alerts.push({ severity: 'warning', short: 'No temp control', message: `${loc} lacks temperature control. Other nodes in this lane are temperature-controlled.`, node: loc })
+  }
+
+  if (node.fragile && node.type !== 'warehouse' && node.type !== 'hub') {
+    alerts.push({ severity: 'info', short: 'Fragile at transit point', message: `${loc} handles fragile goods but is a ${facilityLabel(node.type).toLowerCase()}, not a warehouse.`, node: loc })
+  }
+
+  if (!held.length) {
+    alerts.push({ severity: 'warning', short: 'No certificates', message: `${loc} holds no certifications.`, node: loc })
+  }
+
+  return alerts
+}
+
+const laneRisk = (lane) => {
+  const alerts = lane.nodes.flatMap(n => nodeAlerts(n, lane))
+  const counts = { critical: 0, warning: 0, info: 0 }
+  alerts.forEach(a => counts[a.severity]++)
+  let level = 'ok', label = 'All clear'
+  if      (counts.critical > 0) { level = 'critical'; label = `${counts.critical} critical risk${counts.critical > 1 ? 's' : ''}` }
+  else if (counts.warning  > 0) { level = 'warning';  label = `${counts.warning} warning${counts.warning > 1 ? 's' : ''}` }
+  else if (counts.info     > 0) { level = 'info';     label = `${counts.info} note${counts.info > 1 ? 's' : ''}` }
+  return { level, label, alerts, counts }
+}
+
+// ── Toggle handlers ─────────────────────────────────────────────
+const toggleComplianceStrip = (id) => { openComplianceStrips[id] = !openComplianceStrips[id] }
+const toggleRiskPanel        = (id) => { openRiskPanels[id]       = !openRiskPanels[id] }
+const toggleBackup           = (id) => { openBackupPanels[id]     = !openBackupPanels[id] }
+
+// ── Backup lanes ────────────────────────────────────────────────
+const backupLanesFor = (lane) => {
+  const oCity = lane.origin?.city?.toLowerCase()
+  const dCity = lane.destination?.city?.toLowerCase()
+  if (!oCity || !dCity) return []
+  return allLanes.value.filter(l => {
+    if (l.id === lane.id) return false
+    return l.origin?.city?.toLowerCase() === oCity && l.destination?.city?.toLowerCase() === dCity
+  })
+}
+
+// ── Lane field helpers (handles both API and static JSON formats) ─
+const laneName = (lane) => {
+  if (lane.name) return lane.name
+  const o = lane.origin?.city       || lane.origin?.location       || 'Origin'
+  const d = lane.destination?.city  || lane.destination?.location  || 'Destination'
+  return `${o} → ${d}`
+}
+const laneProduct = (lane) => lane.productType || lane.cargoProfile?.productType || 'Pharmaceutical'
+const laneDate    = (lane) => lane.createdAt   || lane.created_at  || null
+
+// ── Display helpers ─────────────────────────────────────────────
+const productClass = (type) => ({
+  'Pharmaceutical': 'pharma', 'pharmaceutical': 'pharma',
+  'Vaccines': 'vaccines',     'vaccines':       'vaccines',
+  'Biological': 'biological', 'biological':     'biological',
+  'Medical Devices': 'medical','medical_devices':'medical',
+}[type] ?? 'pharma')
+
+const formatDate = (d) => {
+  if (!d) return ''
+  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+const nodeTypeClass  = (_node, idx, total) => idx === 0 ? 'origin' : idx === total - 1 ? 'destination' : 'intermediary'
+const nodeTypeLabel  = (_node, idx, total) => idx === 0 ? 'Origin' : idx === total - 1 ? 'Destination' : `Stop ${idx}`
+const validationClass = (s) => s || 'not_validated'
+const validationLabel = (s) => s === 'validated' ? 'Validated' : s === 'pending' ? 'Pending review' : 'Not validated'
+
+const facilityIcon  = (t) => ({ warehouse: '🏭', airport: '✈️', hub: '🔀', port: '⚓', distribution: '🏢' }[t] ?? '📦')
+const facilityLabel = (t) => ({ warehouse: 'Warehouse', airport: 'Airport', hub: 'Hub', port: 'Port', distribution: 'Distribution' }[t] ?? t)
+const transportIcon = (t) => ({ road: '🚛', air: '✈️', sea: '🚢', rail: '🚆' }[t] ?? '🚛')
+const transportClass = (t) => t || 'road'
 </script>
 
 <style scoped>
-/* ─── Page shell ────────────────────────────────────────────── */
-.lanes-page {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-  background: #f7f8fa;
-}
+/* ── Page shell ────────────────────────────────────────────────── */
+.lanes-page { display: flex; flex-direction: column; min-height: 100%; background: #f4f5f7; }
 
-/* ─── Sticky header ─────────────────────────────────────────── */
+/* ── Sticky header ─────────────────────────────────────────────── */
 .page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 28px;
-  height: 56px;
-  background: #ffffff;
-  border-bottom: 1px solid #eaecf0;
-  flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  z-index: 20;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 0 28px; height: 56px;
+  background: #fff; border-bottom: 1px solid #e3e5e8;
+  flex-shrink: 0; position: sticky; top: 0; z-index: 20;
 }
-
-.hdr-left {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.page-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #0f172a;
-  margin: 0;
-  letter-spacing: -0.15px;
-}
-
+.hdr-left  { display: flex; align-items: center; gap: 9px; }
+.page-title { font-size: 15px; font-weight: 600; color: #0f172a; margin: 0; letter-spacing: -0.15px; }
 .count-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #f1f5f9;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid #e2e8f0;
-  min-width: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 999px; border: 1px solid #e2e8f0; min-width: 24px;
 }
+.hdr-right { display: flex; align-items: center; gap: 8px; }
 
-.hdr-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Search */
-.search-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.s-ico {
-  position: absolute;
-  left: 10px;
-  color: #94a3b8;
-  pointer-events: none;
-}
-
+/* ── Search + suggestions ──────────────────────────────────────── */
+.search-outer { position: relative; }
+.search-wrap  { position: relative; display: flex; align-items: center; }
+.s-ico { position: absolute; left: 10px; color: #94a3b8; pointer-events: none; }
 .search-inp {
-  height: 32px;
-  padding: 0 28px 0 30px;
-  border: 1px solid #e2e8f0;
-  border-radius: 7px;
-  font-size: 12.5px;
-  color: #1e293b;
-  background: #f8fafc;
-  width: 200px;
-  transition: width 0.2s, border-color 0.15s, box-shadow 0.15s, background 0.15s;
-  font-family: inherit;
+  height: 32px; padding: 0 28px 0 30px; border: 1px solid #e2e8f0; border-radius: 7px;
+  font-size: 12.5px; color: #1e293b; background: #f8fafc; width: 220px;
+  transition: width .2s, border-color .15s, box-shadow .15s, background .15s; font-family: inherit;
 }
-
-.search-inp:focus {
-  outline: none;
-  border-color: var(--primary);
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(31, 111, 84, 0.08);
-  width: 240px;
-}
-
+.search-inp:focus { outline: none; border-color: var(--primary); background: #fff; box-shadow: 0 0 0 3px rgba(31,111,84,.08); width: 260px; }
 .search-inp::placeholder { color: #c8d1dc; }
-
-.clear-btn {
-  position: absolute;
-  right: 7px;
-  background: none;
-  border: none;
-  font-size: 15px;
-  color: #94a3b8;
-  cursor: pointer;
-  line-height: 1;
-  padding: 2px 3px;
-  border-radius: 4px;
-  transition: color 0.1s;
-}
-
+.clear-btn { position: absolute; right: 7px; background: none; border: none; font-size: 15px; color: #94a3b8; cursor: pointer; line-height: 1; padding: 2px 3px; border-radius: 4px; }
 .clear-btn:hover { color: #475569; }
 
-/* New Lane button */
-.btn-new {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 13px;
-  background: #0f172a;
-  color: #fff;
-  border: none;
-  border-radius: 7px;
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s;
-  font-family: inherit;
-  white-space: nowrap;
+.suggestions-drop {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.1); z-index: 100; overflow: hidden;
 }
+.suggestion-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer;
+  transition: background .1s;
+}
+.suggestion-item:hover { background: #f8fafc; }
+.sug-kind {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  padding: 2px 6px; border-radius: 3px; white-space: nowrap; flex-shrink: 0;
+}
+.sug-kind.warehouse { background: #dcfce7; color: #15803d; }
+.sug-kind.airport   { background: #dbeafe; color: #1d4ed8; }
+.sug-kind.company   { background: #f3e8ff; color: #7c3aed; }
+.sug-text { display: flex; flex-direction: column; min-width: 0; }
+.sug-label { font-size: 12.5px; font-weight: 500; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sug-sub   { font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+.btn-new {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 13px;
+  background: #0f172a; color: #fff; border: none; border-radius: 7px;
+  font-size: 12.5px; font-weight: 500; cursor: pointer; font-family: inherit; white-space: nowrap;
+  transition: background .15s;
+}
 .btn-new:hover { background: #1e293b; }
 
-/* ─── Search context ────────────────────────────────────────── */
-.search-ctx {
-  padding: 10px 28px 0;
-  font-size: 12px;
-  color: #64748b;
-}
+/* ── Loading / Error ───────────────────────────────────────────── */
+.loading-state { display: flex; align-items: center; gap: 10px; padding: 48px 28px; color: #64748b; font-size: 13px; }
+.loading-spinner { width: 18px; height: 18px; border: 2px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.error-state { display: flex; align-items: center; gap: 10px; padding: 28px; background: #fef2f2; color: #dc2626; font-size: 13px; }
+.err-retry { margin-left: 8px; padding: 4px 12px; background: #fff; border: 1px solid #fecaca; border-radius: 6px; color: #dc2626; font-size: 12px; cursor: pointer; font-family: inherit; }
+.err-retry:hover { background: #fef2f2; }
 
+/* ── Search context / Empty ────────────────────────────────────── */
+.search-ctx { padding: 10px 28px 0; font-size: 12px; color: #64748b; }
 .search-ctx strong { color: #1e293b; font-weight: 600; }
-
-/* ─── Empty state ───────────────────────────────────────────── */
-.empty-state {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 80px 40px;
-  text-align: center;
-}
-
-.empty-icon-wrap {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #94a3b8;
-  margin-bottom: 16px;
-}
-
-.empty-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 0 0 6px;
-}
-
-.empty-sub {
-  font-size: 13px;
-  color: #6b7280;
-  margin: 0 0 20px;
-  max-width: 300px;
-  line-height: 1.5;
-}
-
-.btn-empty {
-  height: 34px;
-  padding: 0 16px;
-  background: #0f172a;
-  color: #fff;
-  border: none;
-  border-radius: 7px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s;
-  font-family: inherit;
-}
-
+.empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px 40px; text-align: center; }
+.empty-icon-wrap { width: 48px; height: 48px; border-radius: 12px; background: #f1f5f9; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; color: #94a3b8; margin-bottom: 16px; }
+.empty-title { font-size: 15px; font-weight: 600; color: #1e293b; margin: 0 0 6px; }
+.empty-sub   { font-size: 13px; color: #6b7280; margin: 0 0 20px; max-width: 300px; line-height: 1.5; }
+.btn-empty   { height: 34px; padding: 0 16px; background: #0f172a; color: #fff; border: none; border-radius: 7px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; }
 .btn-empty:hover { background: #1e293b; }
 
-/* ─── Lanes list ────────────────────────────────────────────── */
-.lanes-list {
-  padding: 16px 28px 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  flex: 1;
-}
+/* ══════════════════════════════════════════════════════════════
+   LANE SECTIONS
+   ══════════════════════════════════════════════════════════════ */
+.lanes-list { padding: 20px 28px 40px; display: flex; flex-direction: column; gap: 20px; flex: 1; }
 
-/* ─── Lane card ─────────────────────────────────────────────── */
-.lane-card {
-  background: #ffffff;
-  border: 1px solid #eaecf0;
-  border-radius: 10px;
-  display: flex;
-  overflow: hidden;
-  transition: border-color 0.15s, box-shadow 0.15s;
+.lane-section {
+  background: #fff; border: 1px solid #e3e5e8; border-radius: 14px; overflow: hidden;
+  transition: box-shadow .2s;
 }
+.lane-section:hover          { box-shadow: 0 4px 20px rgba(0,0,0,.06); }
+.lane-section.has-noncompliant { border-color: #fca5a5; }
+.lane-section.has-critical   { border-color: #ef4444; box-shadow: 0 0 0 2px rgba(239,68,68,.1); }
 
-.lane-card:hover {
-  border-color: #d1d5db;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+/* ── Lane title bar ─────────────────────────────────────────────── */
+.lane-title-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px; padding: 14px 20px;
+  border-bottom: 1px solid #eef0f3; background: #fafbfc;
 }
+.lane-title-left  { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lane-title-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lane-name  { font-size: 15px; font-weight: 600; color: #0f172a; letter-spacing: -0.2px; }
+.lane-date  { font-size: 11.5px; color: #94a3b8; }
 
-/* Left accent stripe by product type */
-.card-stripe {
-  width: 3px;
-  flex-shrink: 0;
+/* Compliance badge */
+.comp-badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 7px;
+  border-radius: 5px; font-size: 10.5px; font-weight: 700; letter-spacing: .03em;
+  white-space: nowrap; border: 1px solid;
 }
-.card-stripe.pharma     { background: #1f6f54; }
-.card-stripe.vaccines   { background: #7c3aed; }
-.card-stripe.biological { background: #2563eb; }
-.card-stripe.medical    { background: #ea580c; }
+.comp-badge.COMPLIANT     { background: #dcfce7; color: #15803d; border-color: #86efac; }
+.comp-badge.CONDITIONAL   { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+.comp-badge.NON-COMPLIANT { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+.comp-badge.CRITICAL      { background: #fef2f2; color: #991b1b; border-color: #ef4444; animation: pulse-crit 1.8s ease-in-out infinite; }
+@keyframes pulse-crit { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } 50% { box-shadow: 0 0 0 3px rgba(239,68,68,.3); } }
 
-.card-inner {
-  flex: 1;
-  padding: 14px 18px 13px;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  min-width: 0;
-}
+.comp-badge.sm { font-size: 9.5px; padding: 2px 6px; }
+.comp-fraction { opacity: .75; }
 
-/* ─── Row 1: Route title ────────────────────────────────────── */
-.row-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.route-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex: 1;
-}
-
-.city {
-  font-size: 17px;
-  font-weight: 600;
-  color: #0f172a;
-  letter-spacing: -0.25px;
-  white-space: nowrap;
-}
-
-.arr-ico {
-  color: #c4cbd5;
-  flex-shrink: 0;
-}
-
+/* Product + status pills */
 .product-pill {
-  display: inline-flex;
-  align-items: center;
-  height: 19px;
-  padding: 0 7px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  flex-shrink: 0;
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 4px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: .03em; white-space: nowrap;
 }
-
 .product-pill.pharma     { background: #dcfce7; color: #15803d; }
 .product-pill.vaccines   { background: #f3e8ff; color: #7c3aed; }
 .product-pill.biological { background: #dbeafe; color: #1d4ed8; }
 .product-pill.medical    { background: #fff7ed; color: #c2410c; }
 
-.open-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 28px;
-  padding: 0 11px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  background: #fff;
-  color: #64748b;
-  font-size: 11.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.13s, border-color 0.13s, color 0.13s;
-  font-family: inherit;
-  white-space: nowrap;
-  flex-shrink: 0;
+.lane-status-badge {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
 }
-
-.open-btn:hover {
-  background: #0f172a;
-  border-color: #0f172a;
-  color: #fff;
-}
-
-/* ─── Row 2: Meta ───────────────────────────────────────────── */
-.row-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.meta-companies {
-  font-size: 12px;
-  font-weight: 500;
-  color: #374151;
-}
-
-.dot-sep {
-  color: #d1d5db;
-  font-size: 12px;
-  flex-shrink: 0;
-  user-select: none;
-}
-
-.meta-text {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-/* ─── Row 3: Route track ────────────────────────────────────── */
-.route-track {
-  display: flex;
-  align-items: flex-start;
-  overflow: hidden;
-  padding: 2px 0;
-}
-
-.track-stop {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-}
-
-.stop-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #94a3b8;
-  flex-shrink: 0;
-  transition: transform 0.15s;
-}
-
-/* Node type colors */
-.track-stop.warehouse .stop-dot { background: #1f6f54; }
-.track-stop.airport   .stop-dot { background: #3b82f6; }
-.track-stop.hub       .stop-dot { background: #8b5cf6; }
-
-/* Origin: green ring */
-.track-stop.is-origin .stop-dot {
-  background: #1f6f54;
-  box-shadow: 0 0 0 2.5px rgba(31, 111, 84, 0.18);
-}
-
-/* Destination: dark ring */
-.track-stop.is-dest .stop-dot {
-  background: #0f172a;
-  box-shadow: 0 0 0 2.5px rgba(15, 23, 42, 0.13);
-}
-
-/* Ellipsis stop */
-.track-stop.is-ellipsis .stop-dot {
-  background: #e2e8f0;
-  width: 6px;
-  height: 6px;
-}
-
-.track-stop.is-ellipsis .stop-lbl {
-  font-weight: 600;
-  color: #94a3b8;
-}
-
-.stop-lbl {
-  font-size: 10px;
-  color: #9ca3af;
-  white-space: nowrap;
-  max-width: 68px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: center;
-}
-
-.lane-card:hover .stop-dot { transform: scale(1.15); }
-
-/* Connector line — aligned to center of 8px dot (margin-top = (8-1.5)/2 = 3.25px) */
-.track-line {
-  flex: 1;
-  height: 1.5px;
-  margin-top: 3.25px;
-  min-width: 14px;
-}
-
-.track-line.seg-ground { background: #e2e8f0; }
-.track-line.seg-air {
-  background: repeating-linear-gradient(
-    90deg,
-    #93c5fd 0px,
-    #93c5fd 4px,
-    transparent 4px,
-    transparent 9px
-  );
-}
-
-/* ─── Row 4: Certificates ───────────────────────────────────── */
-.row-certs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  align-items: center;
-}
+.ls-pending  { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+.ls-live     { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+.ls-archived { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
 
 .cert-tag {
-  display: inline-flex;
-  align-items: center;
-  height: 19px;
-  padding: 0 7px;
-  border-radius: 4px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  font-size: 10.5px;
-  font-weight: 600;
-  color: #64748b;
-  letter-spacing: 0.02em;
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px;
+  border-radius: 4px; background: #f1f5f9; border: 1px solid #e2e8f0;
+  font-size: 10.5px; font-weight: 600; color: #64748b; letter-spacing: .02em;
+}
+.open-btn {
+  display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 12px;
+  border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; color: #64748b;
+  font-size: 11.5px; font-weight: 500; cursor: pointer; font-family: inherit; white-space: nowrap;
+  transition: all .13s;
+}
+.open-btn:hover { background: #0f172a; border-color: #0f172a; color: #fff; }
+
+/* ══════════════════════════════════════════════════════════════
+   COMPLIANCE STRIP
+   ══════════════════════════════════════════════════════════════ */
+.compliance-section { border-bottom: 1px solid #eef0f3; }
+
+.cs-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 20px; cursor: pointer; user-select: none;
+  background: #f8fafb; transition: background .12s;
+}
+.cs-hdr:hover { background: #f1f5f9; }
+.cs-hdr-left  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cs-shield-icon { color: #64748b; flex-shrink: 0; }
+.cs-hdr-label   { font-size: 12px; font-weight: 600; color: #475569; white-space: nowrap; }
+
+.cs-pills { display: flex; gap: 5px; flex-wrap: wrap; }
+.cs-pill {
+  display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
+  border-radius: 4px; font-size: 10.5px; font-weight: 600; white-space: nowrap;
+  border: 1px solid;
+}
+.cs-pill.pass { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.cs-pill.fail { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+.cs-pill.skip { background: #f8fafc; color: #94a3b8; border-color: #e2e8f0; }
+.cs-pill-icon  { font-size: 10px; }
+
+.cs-chevron { color: #94a3b8; transition: transform .2s; flex-shrink: 0; }
+.cs-chevron.open { transform: rotate(180deg); }
+
+/* Expanded compliance body */
+.cs-body { background: #f8fafb; border-top: 1px solid #eef0f3; }
+.cs-row {
+  display: flex; align-items: flex-start; gap: 10px; padding: 8px 20px;
+  border-bottom: 1px solid #eef0f3; font-size: 12px; line-height: 1.4;
+}
+.cs-row:last-child { border-bottom: none; }
+.cs-row-icon { font-size: 12px; font-weight: 700; flex-shrink: 0; margin-top: 1px; min-width: 14px; }
+.cs-row.pass .cs-row-icon { color: #16a34a; }
+.cs-row.fail .cs-row-icon { color: #dc2626; }
+.cs-row.skip .cs-row-icon { color: #94a3b8; }
+.cs-row-content { display: flex; flex-direction: column; gap: 2px; }
+.cs-row-label  { font-weight: 600; color: #334155; }
+.cs-row.pass .cs-row-label { color: #15803d; }
+.cs-row.fail .cs-row-label { color: #b91c1c; }
+.cs-row.skip .cs-row-label { color: #94a3b8; }
+.cs-row-detail { color: #64748b; }
+
+/* ══════════════════════════════════════════════════════════════
+   RISK SUMMARY STRIP
+   ══════════════════════════════════════════════════════════════ */
+.risk-strip { border-bottom: 1px solid #eef0f3; }
+.risk-strip-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 20px; cursor: pointer; user-select: none;
+  background: #fffbf5; transition: background .12s;
+}
+.risk-strip-hdr:hover { background: #fff7eb; }
+.risk-strip-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.risk-strip-icon  { color: #d97706; flex-shrink: 0; }
+.risk-strip-count { font-size: 12.5px; font-weight: 600; color: #92400e; }
+.risk-strip-breakdown { display: flex; gap: 6px; }
+.rb { font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 3px; }
+.rb.critical { background: #fef2f2; color: #dc2626; }
+.rb.warning  { background: #fffbeb; color: #d97706; }
+.rb.info     { background: #eff6ff; color: #2563eb; }
+.risk-strip-chevron { color: #94a3b8; transition: transform .2s; flex-shrink: 0; }
+.risk-strip-chevron.open { transform: rotate(180deg); }
+.risk-strip-body { padding: 0 20px 12px; display: flex; flex-direction: column; gap: 4px; background: #fffbf5; }
+.risk-alert-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 10px; border-radius: 6px; font-size: 12px; line-height: 1.4; }
+.risk-alert-row.critical { background: #fef2f2; }
+.risk-alert-row.warning  { background: #fffbeb; }
+.risk-alert-row.info     { background: #eff6ff; }
+.ra-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.risk-alert-row.critical .ra-dot { background: #dc2626; }
+.risk-alert-row.warning  .ra-dot { background: #d97706; }
+.risk-alert-row.info     .ra-dot { background: #2563eb; }
+.ra-node { font-weight: 600; color: #334155; white-space: nowrap; flex-shrink: 0; }
+.ra-msg  { color: #64748b; }
+
+/* ══════════════════════════════════════════════════════════════
+   DIAGRAM TRACK
+   ══════════════════════════════════════════════════════════════ */
+.diagram-scroll { overflow-x: auto; overflow-y: hidden; padding: 24px 20px 28px; -webkit-overflow-scrolling: touch; }
+.diagram-scroll::-webkit-scrollbar { height: 6px; }
+.diagram-scroll::-webkit-scrollbar-track { background: transparent; }
+.diagram-scroll::-webkit-scrollbar-thumb { background: #d4d8de; border-radius: 3px; }
+.diagram-scroll::-webkit-scrollbar-thumb:hover { background: #b0b5be; }
+.diagram-track { display: flex; align-items: stretch; gap: 0; min-width: max-content; }
+
+/* ══════════════════════════════════════════════════════════════
+   NODE CARD — redesigned key-value layout
+   ══════════════════════════════════════════════════════════════ */
+.node-card {
+  width: 228px; background: #fff; border: 1.5px solid #e0e4ea; border-radius: 12px;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 0; flex-shrink: 0;
+  position: relative; transition: border-color .15s, box-shadow .15s;
+}
+.node-card:hover { border-color: #c5cad2; box-shadow: 0 3px 14px rgba(0,0,0,.07); }
+
+/* Top accent by role */
+.node-card.origin      { border-top: 3px solid #1f6f54; }
+.node-card.destination { border-top: 3px solid #0f172a; }
+.node-card.intermediary{ border-top: 3px solid #3b82f6; }
+
+/* Background tint for risky validation status */
+.node-card.not_validated { background: #fffbfb; }
+.node-card.pending       { background: #fffdf5; }
+
+/* Alert border */
+.node-card.has-alerts { border-left: 3px solid #f59e0b; }
+.node-card.has-alerts.not_validated { border-left-color: #ef4444; }
+
+/* Card header */
+.card-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.card-hdr-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.fac-icon { font-size: 14px; flex-shrink: 0; line-height: 1; }
+.card-hdr-loc { font-size: 14px; font-weight: 600; color: #0f172a; letter-spacing: -0.15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.validation-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.validation-dot.validated     { background: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,.2); }
+.validation-dot.pending       { background: #facc15; box-shadow: 0 0 0 2px rgba(250,204,21,.2); }
+.validation-dot.not_validated { background: #ef4444; box-shadow: 0 0 0 2px rgba(239,68,68,.15); }
+
+/* Role badge */
+.card-role-row { margin-bottom: 8px; }
+.type-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; padding: 2px 7px; border-radius: 4px; }
+.type-badge.origin      { background: #dcfce7; color: #15803d; }
+.type-badge.destination { background: #f1f5f9; color: #334155; }
+.type-badge.intermediary{ background: #dbeafe; color: #1d4ed8; }
+
+/* Key-value list */
+.card-kv-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.kv-row { display: flex; align-items: baseline; gap: 6px; }
+.kv-label { font-size: 10.5px; color: #94a3b8; font-weight: 500; min-width: 52px; flex-shrink: 0; }
+.kv-val { font-size: 11.5px; color: #334155; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kv-val.kv-temp     { color: #2563eb; font-weight: 600; }
+.kv-val.kv-muted    { color: #c8d1dc; font-style: italic; font-weight: 400; }
+.kv-val.kv-fragile  { color: #d97706; font-weight: 600; }
+.kv-val.kv-unverified { color: #94a3b8; }
+.kv-warn-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 13px; height: 13px; border-radius: 50%; background: #f59e0b; color: #fff;
+  font-size: 9px; font-weight: 800; margin-left: 3px; flex-shrink: 0; vertical-align: middle;
 }
 
-/* ─── Responsive ────────────────────────────────────────────── */
+/* Inline node alerts */
+.node-alerts { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.node-alert { display: flex; align-items: center; gap: 5px; padding: 3px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 600; line-height: 1.3; }
+.node-alert.critical { background: #fef2f2; color: #b91c1c; }
+.node-alert.warning  { background: #fffbeb; color: #92400e; }
+.node-alert.info     { background: #eff6ff; color: #1e40af; }
+.na-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.node-alert.critical .na-dot { background: #dc2626; }
+.node-alert.warning  .na-dot { background: #d97706; }
+.node-alert.info     .na-dot { background: #3b82f6; }
+.na-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Certificates */
+.card-certs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; padding-top: 8px; border-top: 1px solid #f1f3f6; }
+.node-cert {
+  font-size: 9.5px; font-weight: 600; padding: 2px 6px; border-radius: 3px;
+  border: 1px solid; letter-spacing: .02em;
+}
+.node-cert.cert-ok      { background: #dcfce7; color: #15803d; border-color: #86efac; }
+.node-cert.cert-missing { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+.node-cert.cert-extra   { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+
+/* ── Transport connectors ─────────────────────────────────────── */
+.connector-wrap { display: flex; align-items: center; flex-shrink: 0; min-width: 80px; position: relative; align-self: center; }
+.connector-line { flex: 1; height: 2px; min-width: 14px; }
+.connector-line.road { background: #d1d5db; }
+.connector-line.air  { background: repeating-linear-gradient(90deg, #93c5fd 0,#93c5fd 5px,transparent 5px,transparent 11px); }
+.connector-line.sea  { background: repeating-linear-gradient(90deg, #67e8f9 0,#67e8f9 5px,transparent 5px,transparent 11px); }
+.connector-line.rail { background: repeating-linear-gradient(90deg, #a78bfa 0,#a78bfa 5px,transparent 5px,transparent 11px); }
+.connector-badge {
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+  padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  cursor: pointer; border: 1.5px solid; background: #fff;
+  transition: all .15s; font-family: inherit; white-space: nowrap;
+}
+.connector-badge.road { color: #92400e; border-color: #fde68a; background: #fffbeb; }
+.connector-badge.road:hover { background: #fef3c7; }
+.connector-badge.air  { color: #1d4ed8; border-color: #bfdbfe; background: #eff6ff; }
+.connector-badge.air:hover  { background: #dbeafe; }
+.connector-badge.sea  { color: #0e7490; border-color: #a5f3fc; background: #ecfeff; }
+.connector-badge.sea:hover  { background: #cffafe; }
+.connector-badge.rail { color: #6d28d9; border-color: #ddd6fe; background: #f5f3ff; }
+.connector-badge.rail:hover { background: #ede9fe; }
+.connector-label { text-transform: capitalize; }
+
+/* ── Add node button ─────────────────────────────────────────── */
+.add-node-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; min-height: 44px; border: 2px dashed #d1d5db; border-radius: 12px;
+  background: transparent; color: #94a3b8; cursor: pointer; flex-shrink: 0;
+  align-self: center; margin-left: 6px; transition: all .15s;
+}
+.add-node-btn:hover { border-color: #3b82f6; color: #3b82f6; background: rgba(59,130,246,.04); }
+
+/* ══════════════════════════════════════════════════════════════
+   BACKUP ROUTES
+   ══════════════════════════════════════════════════════════════ */
+.backup-section { border-top: 1px solid #eef0f3; }
+.backup-hdr {
+  display: flex; align-items: center; gap: 8px; padding: 10px 20px; cursor: pointer;
+  user-select: none; font-size: 12px; color: #64748b; background: #f8fafb;
+  transition: background .12s;
+}
+.backup-hdr:hover { background: #f1f5f9; }
+.backup-hdr svg { flex-shrink: 0; }
+.backup-hdr span { flex: 1; }
+.backup-chevron { color: #94a3b8; transition: transform .2s; flex-shrink: 0; }
+.backup-chevron.open { transform: rotate(180deg); }
+.backup-list { display: flex; flex-direction: column; gap: 0; }
+.backup-row {
+  display: flex; align-items: center; gap: 12px; padding: 10px 20px;
+  border-top: 1px solid #f1f3f6; background: #fafbfc;
+}
+.backup-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.backup-name { font-size: 12.5px; font-weight: 600; color: #1e293b; }
+.backup-meta { font-size: 11px; color: #94a3b8; }
+.backup-view-btn {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 10px;
+  border: 1px solid #e2e8f0; border-radius: 5px; background: #fff;
+  font-size: 11.5px; font-weight: 500; color: #64748b; cursor: pointer; font-family: inherit;
+  white-space: nowrap; transition: all .13s;
+}
+.backup-view-btn:hover { background: #0f172a; border-color: #0f172a; color: #fff; }
+
+/* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .page-header    { padding: 0 20px; }
-  .lanes-list     { padding: 12px 20px 24px; }
-  .city           { font-size: 15px; }
-  .search-inp     { width: 160px; }
-  .search-inp:focus { width: 190px; }
-  .row-meta       { display: none; }
+  .page-header { padding: 0 16px; }
+  .lanes-list  { padding: 12px 16px 24px; }
+  .lane-title-bar { padding: 12px 14px; flex-direction: column; align-items: flex-start; }
+  .lane-title-right { width: 100%; justify-content: flex-end; }
+  .diagram-scroll { padding: 16px 14px 20px; }
+  .node-card { width: 196px; padding: 12px 13px; }
+  .search-inp { width: 160px; }
+  .search-inp:focus { width: 200px; }
+  .cs-hdr { padding: 8px 14px; }
+  .cs-body .cs-row { padding: 7px 14px; }
+  .risk-strip-hdr { padding: 8px 14px; }
+  .risk-strip-body { padding: 0 14px 10px; }
 }
 </style>
