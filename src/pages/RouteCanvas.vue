@@ -339,7 +339,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, nextTick } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/services/api'
 import { searchCompanies, searchLocations, getAllCompanies, TRANSPORT_COMPANIES, WAREHOUSES, AIRPORTS } from '@/data/companies'
@@ -516,6 +516,10 @@ const toggleConnector = (idx) => {
   expandedConnIdx.value = expandedConnIdx.value === idx ? null : idx
   connCompanySugs.value = []
 }
+
+const closeConnPanel = () => { expandedConnIdx.value = null }
+onMounted(() => document.addEventListener('click', closeConnPanel))
+onBeforeUnmount(() => document.removeEventListener('click', closeConnPanel))
 
 const onConnCompanyInput = (idx, val) => {
   connFocusedNodeId.value = idx
