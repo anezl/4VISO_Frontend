@@ -6,7 +6,7 @@
       <div class="rpt-nav-left">
         <img src="/4VISO_Logo.png" alt="4VISO" class="rpt-nav-logo" />
         <span class="rpt-nav-divider"></span>
-        <span class="rpt-nav-title">Lane Compliance Report</span>
+        <span class="rpt-nav-title">Route Risk Report</span>
       </div>
       <div class="rpt-nav-right">
         <button class="btn-back" @click="$router.push('/lanes')">← Back to Lanes</button>
@@ -19,12 +19,12 @@
       <div class="pcover-left">
         <img src="/4VISO_Logo.png" alt="4VISO" class="pcover-logo" />
         <div class="pcover-titles">
-          <div class="pcover-main">Lane Compliance Report</div>
+          <div class="pcover-main">Route Risk Report</div>
           <div class="pcover-sub">Supply Chain Risk Assessment · {{ generatedDate }}</div>
         </div>
       </div>
       <div class="pcover-right" v-if="lane">
-        <span class="pcover-status" :class="'cs-' + compliance.status">{{ compliance.status }}</span>
+        <span class="pcover-status" :class="'cs-' + riskScore.level">{{ riskScore.label }}</span>
       </div>
     </div>
 
@@ -55,19 +55,18 @@
           </div>
         </div>
         <div class="hero-right">
-          <div class="score-ring" :class="'sr-' + compliance.status">
+          <div class="score-ring" :class="'sr-' + riskScore.level">
             <div class="score-ring-inner">
-              <span class="score-num">{{ compliance.passed }}</span>
-              <span class="score-denom">/ {{ compliance.total }}</span>
-              <span class="score-label">checks</span>
+              <span class="score-num">{{ riskScore.score }}</span>
+              <span class="score-label">/ 100</span>
             </div>
           </div>
           <div class="score-verdict">
-            <div class="verdict-badge" :class="'vb-' + compliance.status">{{ compliance.status }}</div>
+            <div class="verdict-badge" :class="'vb-' + riskScore.level">{{ riskScore.level }} RISK</div>
             <div class="verdict-counts">
               <span v-if="riskResult.counts.critical" class="vcnt vcnt-crit">● {{ riskResult.counts.critical }} critical</span>
-              <span v-if="riskResult.counts.warning"  class="vcnt vcnt-warn">● {{ riskResult.counts.warning }} warning</span>
-              <span v-if="!riskResult.counts.critical && !riskResult.counts.warning" class="vcnt vcnt-ok">● No issues</span>
+              <span v-if="riskResult.counts.warning"  class="vcnt vcnt-warn">● {{ riskResult.counts.warning }} attention</span>
+              <span v-if="!riskResult.counts.critical && !riskResult.counts.warning" class="vcnt vcnt-ok">● No attention areas</span>
             </div>
           </div>
         </div>
@@ -115,39 +114,75 @@
         </div>
       </section>
 
-      <!-- ══ SECTION 2: COMPLIANCE SUMMARY ══ -->
-      <section class="card">
+      <!-- ══ SECTION 2: AREAS OF ATTENTION ══ -->
+      <section class="card" v-if="riskResult.alerts.length > 0">
         <div class="card-head">
           <span class="card-head-num">02</span>
-          <span class="card-head-title">Compliance Assessment</span>
-          <div class="card-head-badge" :class="'chb-' + compliance.status">{{ compliance.status }}</div>
+          <span class="card-head-title">Areas of Attention</span>
+          <div class="alert-counts no-print">
+            <span v-if="riskResult.counts.critical" class="ac-badge ac-crit">{{ riskResult.counts.critical }} Critical</span>
+            <span v-if="riskResult.counts.warning"  class="ac-badge ac-warn">{{ riskResult.counts.warning }} Warning</span>
+          </div>
         </div>
-
-        <div class="checks-grid">
-          <div v-for="c in compliance.checks" :key="c.key"
-            class="check-card" :class="c.skip ? 'cc-skip' : c.ok ? 'cc-pass' : 'cc-fail'">
-            <div class="cc-top">
-              <div class="cc-icon-wrap">
-                <span class="cc-icon">{{ c.skip ? '—' : c.ok ? '✓' : '✗' }}</span>
-              </div>
-              <div class="cc-info">
-                <span class="cc-label">{{ c.label }}</span>
-                <span class="cc-status-text">{{ c.skip ? 'N/A' : c.ok ? 'Passed' : c.fails.length + ' issue' + (c.fails.length > 1 ? 's' : '') }}</span>
-              </div>
+        <div class="alerts-list">
+          <div v-for="(a, i) in riskResult.alerts" :key="i"
+            class="alert-row" :class="'ar-' + a.severity">
+            <div class="ar-sev-bar"></div>
+            <div class="ar-icon">{{ a.severity === 'critical' ? '⛔' : a.severity === 'warning' ? '⚠️' : 'ℹ️' }}</div>
+            <div class="ar-content">
+              <div class="ar-node">{{ a.node }}</div>
+              <div class="ar-msg">{{ a.message }}</div>
             </div>
-            <ul v-if="!c.ok && !c.skip && c.fails.length" class="cc-fails">
-              <li v-for="f in c.fails" :key="f">{{ f }}</li>
+            <div class="ar-tag" :class="'art-' + a.severity">{{ a.severity }}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" v-else>
+        <div class="card-head">
+          <span class="card-head-num">02</span>
+          <span class="card-head-title">Areas of Attention</span>
+          <span class="card-head-badge chb-ok">No Issues</span>
+        </div>
+        <div class="no-issues-msg">
+          <span class="no-issues-icon">✓</span>
+          <span>No attention areas identified for this route.</span>
+        </div>
+      </section>
+
+      <!-- ══ SECTION 3: RISK BY CATEGORY ══ -->
+      <section class="card">
+        <div class="card-head">
+          <span class="card-head-num">03</span>
+          <span class="card-head-title">Risk by Category</span>
+          <span class="card-head-sub">Temperature · Carriers · Certificates · Handling</span>
+        </div>
+        <div class="risk-cats-grid">
+          <div v-for="cat in riskCategories" :key="cat.key"
+            class="risk-cat" :class="'rc-' + cat.level">
+            <div class="rc-top">
+              <span class="rc-icon">{{ cat.icon }}</span>
+              <div class="rc-info">
+                <span class="rc-label">{{ cat.label }}</span>
+                <span class="rc-summary">{{ cat.summary }}</span>
+              </div>
+              <span class="rc-badge" :class="'rcb-' + cat.level">
+                {{ cat.level === 'low' ? 'Low Risk' : cat.level === 'medium' ? 'Medium Risk' : 'High Risk' }}
+              </span>
+            </div>
+            <ul v-if="cat.issues.length" class="rc-issues">
+              <li v-for="issue in cat.issues" :key="issue">{{ issue }}</li>
             </ul>
           </div>
         </div>
       </section>
 
-      <!-- ══ SECTION 3: NODE CAPABILITY MATRIX ══ -->
+      <!-- ══ SECTION 4: NODE RISK PROFILE ══ -->
       <section class="card">
         <div class="card-head">
-          <span class="card-head-num">03</span>
-          <span class="card-head-title">Node Capability Matrix</span>
-          <span class="card-head-sub">Temperature · Fragile · Certificates · Validation</span>
+          <span class="card-head-num">04</span>
+          <span class="card-head-title">Node Risk Profile</span>
+          <span class="card-head-sub">Per-node temperature · fragile · certificates · validation</span>
         </div>
 
         <div class="matrix-wrap">
@@ -205,11 +240,11 @@
         </div>
       </section>
 
-      <!-- ══ SECTION 4: TRANSPORT RISK ══ -->
+      <!-- ══ SECTION 5: TRANSPORT SEGMENT ANALYSIS ══ -->
       <section class="card" v-if="transportSegments.length > 0">
         <div class="card-head">
-          <span class="card-head-num">04</span>
-          <span class="card-head-title">Transport Segment Risk</span>
+          <span class="card-head-num">05</span>
+          <span class="card-head-title">Transport Segment Analysis</span>
           <span v-if="effectiveTempBlock" class="card-head-badge" :style="tempTagStyle">
             {{ tempBlockIcon(effectiveTempBlock) }} {{ tempBlockLabel(effectiveTempBlock) }}
           </span>
@@ -234,29 +269,6 @@
         </div>
       </section>
 
-      <!-- ══ SECTION 5: RISK ALERTS ══ -->
-      <section class="card" v-if="riskResult.alerts.length > 0">
-        <div class="card-head">
-          <span class="card-head-num">05</span>
-          <span class="card-head-title">Risk Alerts</span>
-          <div class="alert-counts no-print">
-            <span v-if="riskResult.counts.critical" class="ac-badge ac-crit">{{ riskResult.counts.critical }} Critical</span>
-            <span v-if="riskResult.counts.warning"  class="ac-badge ac-warn">{{ riskResult.counts.warning }} Warning</span>
-          </div>
-        </div>
-        <div class="alerts-list">
-          <div v-for="(a, i) in riskResult.alerts" :key="i"
-            class="alert-row" :class="'ar-' + a.severity">
-            <div class="ar-sev-bar"></div>
-            <div class="ar-icon">{{ a.severity === 'critical' ? '⛔' : a.severity === 'warning' ? '⚠️' : 'ℹ️' }}</div>
-            <div class="ar-content">
-              <div class="ar-node">{{ a.node }}</div>
-              <div class="ar-msg">{{ a.message }}</div>
-            </div>
-            <div class="ar-tag" :class="'art-' + a.severity">{{ a.severity }}</div>
-          </div>
-        </div>
-      </section>
 
     </div><!-- end rpt-body -->
 
@@ -441,6 +453,95 @@ const compliance = computed(() => {
   return { status, passed, total: checks.length, checks }
 })
 
+// ─── Risk score ───────────────────────────────────────────────────
+const riskScore = computed(() => {
+  const counts = riskResult.value.counts
+  let score = 100
+  score -= (counts.critical || 0) * 20
+  score -= (counts.warning  || 0) * 10
+  score = Math.max(0, score)
+  const level = score >= 75 ? 'LOW' : score >= 45 ? 'MEDIUM' : 'HIGH'
+  const label = level === 'LOW' ? 'Low Risk' : level === 'MEDIUM' ? 'Medium Risk' : 'High Risk'
+  return { score, level, label }
+})
+
+// ─── Risk categories ─────────────────────────────────────────────
+const riskCategories = computed(() => {
+  if (!lane.value) return []
+  const nodes    = lane.value.nodes || []
+  const required = lane.value.certificates || []
+  const tb       = effectiveTempBlock.value
+  const cats     = []
+
+  // Temperature Chain
+  const tempIssues = []
+  if (tb && tb !== 'ambient') {
+    nodes.forEach(n => {
+      const cap = nodeCapTemp(n)
+      if (!cap.ok) tempIssues.push(`${n.location || 'Node'}: ${cap.reason}`)
+    })
+    nodes.slice(1).forEach(n => {
+      const re = TRANSPORT_TEMP_RISK[tb]?.[n.transport || 'road']
+      if (re && !re.ok) tempIssues.push(`${transportLabelText(n.transport)} leg: ${re.reason}`)
+    })
+  }
+  cats.push({
+    key: 'temp', icon: '🌡️', label: 'Temperature Chain',
+    level: (!tb || tb === 'ambient') ? 'low' : tempIssues.length > 1 ? 'high' : tempIssues.length === 1 ? 'medium' : 'low',
+    summary: !tb ? 'No temperature requirement set' : tb === 'ambient' ? 'Ambient — no cold chain required' : tempIssues.length ? `${tempIssues.length} temperature gap${tempIssues.length > 1 ? 's' : ''} identified` : 'Cold chain integrity confirmed across all nodes',
+    issues: tempIssues,
+  })
+
+  // Carrier & Facility
+  const carrierIssues = []
+  const ALL_DB = [...TRANSPORT_COMPANIES, ...WAREHOUSES, ...AIRPORTS]
+  nodes.forEach(n => {
+    if (!n.company) { carrierIssues.push(`${n.location || 'Node'}: no company assigned`); return }
+    const db = ALL_DB.find(c => c.name === n.company)
+    if (!db) { carrierIssues.push(`${n.company}: not in certified database`); return }
+    if (tb && tb !== 'ambient' && !(db.tempCapabilities || []).includes(tb))
+      carrierIssues.push(`${n.company}: not ${tb} capable`)
+    if (lane.value.fragile && !db.fragileCapable)
+      carrierIssues.push(`${n.company}: not certified for fragile handling`)
+  })
+  cats.push({
+    key: 'carrier', icon: '🏭', label: 'Carriers & Facilities',
+    level: carrierIssues.length > 2 ? 'high' : carrierIssues.length > 0 ? 'medium' : 'low',
+    summary: carrierIssues.length ? `${carrierIssues.length} carrier gap${carrierIssues.length > 1 ? 's' : ''} requiring attention` : 'All carriers and facilities verified',
+    issues: carrierIssues,
+  })
+
+  // Certification coverage
+  const certIssues = []
+  nodes.forEach(n => {
+    const miss = required.filter(c => !(n.certificates || []).includes(c))
+    if (miss.length) certIssues.push(`${n.location || 'Node'}: missing ${miss.join(', ')}`)
+  })
+  cats.push({
+    key: 'cert', icon: '📋', label: 'Certification Coverage',
+    level: certIssues.length > 1 ? 'high' : certIssues.length === 1 ? 'medium' : 'low',
+    summary: required.length === 0 ? 'No certifications required for this route' : certIssues.length ? `${certIssues.length} certification gap${certIssues.length > 1 ? 's' : ''} across the route` : 'Full certificate coverage confirmed',
+    issues: certIssues,
+  })
+
+  // Handling & Validation
+  const handlingIssues = []
+  nodes.forEach(n => {
+    const fc = nodeCapFragile(n)
+    if (!fc.na && !fc.ok) handlingIssues.push(`${n.location || 'Node'}: ${fc.reason}`)
+    if (n.validationStatus === 'not_validated') handlingIssues.push(`${n.location || 'Node'}: node not validated`)
+    else if (n.validationStatus === 'pending')  handlingIssues.push(`${n.location || 'Node'}: validation pending`)
+  })
+  cats.push({
+    key: 'handling', icon: '📦', label: 'Handling & Validation',
+    level: handlingIssues.some(i => i.includes('not validated')) ? 'high' : handlingIssues.length > 0 ? 'medium' : 'low',
+    summary: handlingIssues.length ? `${handlingIssues.length} handling or validation concern${handlingIssues.length > 1 ? 's' : ''}` : 'Handling and validation requirements met',
+    issues: handlingIssues,
+  })
+
+  return cats
+})
+
 // ─── Transport segments ───────────────────────────────────────────
 const transportSegments = computed(() => {
   if (!lane.value) return []
@@ -582,6 +683,9 @@ const printReport = () => window.print()
 .score-ring.sr-CONDITIONAL   { border-color: #f59e0b; box-shadow: 0 0 20px rgba(245,158,11,0.3); }
 .score-ring.sr-NON-COMPLIANT { border-color: #ef4444; box-shadow: 0 0 20px rgba(239,68,68,0.3); }
 .score-ring.sr-CRITICAL      { border-color: #991b1b; box-shadow: 0 0 20px rgba(153,27,27,0.4); }
+.score-ring.sr-LOW    { border-color: #22c55e; box-shadow: 0 0 20px rgba(34,197,94,0.3); }
+.score-ring.sr-MEDIUM { border-color: #f59e0b; box-shadow: 0 0 20px rgba(245,158,11,0.3); }
+.score-ring.sr-HIGH   { border-color: #ef4444; box-shadow: 0 0 20px rgba(239,68,68,0.4); }
 
 .score-ring-inner { display: flex; flex-direction: column; align-items: center; line-height: 1; }
 .score-num   { font-size: 30px; font-weight: 800; color: white; }
@@ -597,6 +701,9 @@ const printReport = () => window.print()
 .vb-CONDITIONAL   { background: rgba(245,158,11,0.2); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
 .vb-NON-COMPLIANT { background: rgba(239,68,68,0.2);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
 .vb-CRITICAL      { background: rgba(153,27,27,0.4);  color: #fca5a5; border: 1px solid #991b1b; }
+.vb-LOW    { background: rgba(34,197,94,0.2);  color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+.vb-MEDIUM { background: rgba(245,158,11,0.2); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+.vb-HIGH   { background: rgba(239,68,68,0.2);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
 
 .verdict-counts { display: flex; flex-direction: column; gap: 3px; }
 .vcnt { font-size: 11px; font-weight: 600; }
@@ -644,6 +751,7 @@ const printReport = () => window.print()
 .chb-CONDITIONAL   { background: #fef9c3; color: #854d0e; }
 .chb-NON-COMPLIANT { background: #fef2f2; color: #b91c1c; }
 .chb-CRITICAL      { background: #fef2f2; color: #7f1d1d; border: 1px solid #ef4444; }
+.chb-ok { background: #dcfce7; color: #15803d; }
 
 /* ═══ FLOW TRACK ══════════════════════════════════════════════════ */
 .flow-track {
@@ -848,6 +956,55 @@ const printReport = () => window.print()
 .art-warning  { background: #fef9c3; color: #854d0e; }
 .art-info     { background: #eff6ff; color: #1d4ed8; }
 
+/* ═══ NO-ISSUES MESSAGE ═══════════════════════════════════════════ */
+.no-issues-msg {
+  display: flex; align-items: center; gap: 12px;
+  padding: 24px 28px; color: #15803d; font-size: 14px; font-weight: 500;
+}
+.no-issues-icon { font-size: 20px; }
+
+/* ═══ RISK CATEGORIES ═════════════════════════════════════════════ */
+.risk-cats-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px; padding: 24px 28px;
+}
+.risk-cat {
+  border-radius: 10px; border: 1.5px solid #e2e8f0;
+  padding: 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.rc-low    { border-color: #86efac; background: #f0fdf4; }
+.rc-medium { border-color: #fde68a; background: #fffbeb; }
+.rc-high   { border-color: #fca5a5; background: #fff5f5; }
+
+.rc-top { display: flex; align-items: flex-start; gap: 10px; }
+.rc-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+.rc-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.rc-label   { font-size: 13px; font-weight: 700; color: #1e293b; }
+.rc-summary { font-size: 11.5px; color: #64748b; line-height: 1.4; }
+.rc-low    .rc-summary { color: #15803d; }
+.rc-medium .rc-summary { color: #92400e; }
+.rc-high   .rc-summary { color: #b91c1c; }
+
+.rc-badge {
+  font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 5px;
+  white-space: nowrap; flex-shrink: 0; align-self: flex-start;
+}
+.rcb-low    { background: #dcfce7; color: #15803d; }
+.rcb-medium { background: #fef9c3; color: #854d0e; }
+.rcb-high   { background: #fef2f2; color: #b91c1c; }
+
+.rc-issues {
+  margin: 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.rc-issues li {
+  font-size: 11.5px; padding: 5px 8px;
+  border-radius: 5px; line-height: 1.4;
+}
+.rc-low    .rc-issues li { color: #15803d; background: rgba(34,197,94,0.08); border-left: 2px solid #22c55e; }
+.rc-medium .rc-issues li { color: #92400e; background: rgba(245,158,11,0.08); border-left: 2px solid #f59e0b; }
+.rc-high   .rc-issues li { color: #b91c1c; background: rgba(239,68,68,0.07); border-left: 2px solid #ef4444; }
+
 /* ═══ PRINT ═══════════════════════════════════════════════════════ */
 .print-only { display: none; }
 
@@ -875,11 +1032,14 @@ const printReport = () => window.print()
   .cs-CONDITIONAL   { background: #fef9c3; color: #854d0e; }
   .cs-NON-COMPLIANT { background: #fef2f2; color: #b91c1c; }
   .cs-CRITICAL      { background: #fef2f2; color: #7f1d1d; border: 1px solid #ef4444; }
+  .cs-LOW    { background: #dcfce7; color: #15803d; }
+  .cs-MEDIUM { background: #fef9c3; color: #854d0e; }
+  .cs-HIGH   { background: #fef2f2; color: #b91c1c; }
 
   .rpt-body { padding: 0; max-width: 100%; gap: 16px; }
   .card { border-radius: 8px; box-shadow: none; break-inside: avoid; page-break-inside: avoid; }
   .card-head { padding: 12px 20px; }
-  .checks-grid { padding: 16px 20px; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .risk-cats-grid { padding: 16px 20px; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .flow-track  { padding: 16px 20px; }
   .matrix-wrap { overflow: visible; }
   .seg-list    { padding: 12px 20px 16px; }
