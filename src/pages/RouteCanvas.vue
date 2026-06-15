@@ -55,14 +55,27 @@
     <div class="main-area">
       <div class="canvas-card">
 
+        <!-- LOAD ERROR -->
+        <div v-if="loadError" class="canvas-load-error">
+          <p>{{ loadError }}</p>
+          <button @click="$router.push('/lanes')">← Back to Lanes</button>
+        </div>
+
+        <template v-else>
+
         <!-- TOOLBAR -->
         <div class="toolbar">
           <div class="toolbar-left">
-            <button class="btn-back" @click="$router.push('/create')">← Back</button>
+            <button class="btn-back" @click="$router.push('/lanes')">← Back</button>
           </div>
           <div class="toolbar-center">
             <h2 class="toolbar-title">Route Builder</h2>
-            <p class="toolbar-sub">Double-click to edit · Drag to reorder or change row</p>
+            <p class="toolbar-sub">
+              <span v-if="saveStatus === 'saving'" class="save-ind saving">Saving…</span>
+              <span v-else-if="saveStatus === 'saved'" class="save-ind saved">✓ Saved</span>
+              <span v-else-if="saveStatus === 'error'" class="save-ind error">⚠ Save failed</span>
+              <span v-else class="save-ind idle">Double-click to edit · Drag to reorder</span>
+            </p>
           </div>
           <div class="toolbar-actions">
             <button class="btn-tool" @click="addNode" :disabled="removingMode || backupPickMode">
@@ -92,6 +105,7 @@
           <div class="banner-mid">
             <div class="banner-line"></div>
             <span class="banner-stops">{{ intermediaryNodes.length }} stop{{ intermediaryNodes.length !== 1 ? 's' : '' }}</span>
+            <span v-if="currentLane?.riskLevel" class="risk-badge" :class="'risk-' + currentLane.riskLevel">{{ currentLane.riskLevel }} risk</span>
             <div class="banner-line"></div>
             <span class="banner-arrow">→</span>
           </div>
@@ -218,6 +232,8 @@
             <button class="zoom-btn" @click="resetView" title="Reset view">⊡</button>
           </div>
         </div>
+
+        </template><!-- end v-else (no loadError) -->
 
       </div>
     </div>
@@ -716,27 +732,43 @@ const saveBackupDetails = () => {
   if (editingBackupRef.nodeIdx !== null && editingBackupData.value)
     nodes.value[editingBackupRef.nodeIdx].backups[editingBackupRef.bkIdx] = { ...editingBackupData.value }
   closeBackupModal()
+  saveLane()
 }
 
 // ─── Node CRUD ────────────────────────────────────────────────────
-const addNode = () => nodes.value.splice(nodes.value.length - 1, 0, {
-  id: Date.now(), type: 'intermediary',
-  details: { company: '', location: '', transportType: 'road', facilityType: 'warehouse' },
-  certifications: [],
-  backups: [], row: 0,
-})
-const deleteNode = (index) => { if (nodes.value[index].type === 'intermediary') nodes.value.splice(index, 1); removingMode.value = false }
-const addBackupToNode = (index) => { if (!nodes.value[index].backups) nodes.value[index].backups = []; nodes.value[index].backups.push({ location: '', company: '', transportType: 'road' }) }
-const removeBackup = (ni, bi) => nodes.value[ni].backups.splice(bi, 1)
+const addNode = () => {
+  nodes.value.splice(nodes.value.length - 1, 0, {
+    id: Date.now(), type: 'intermediary',
+    details: { company: '', location: '', transportType: 'road', facilityType: 'warehouse' },
+    certifications: [],
+    backups: [], row: 0,
+  })
+  saveLane()
+}
+const deleteNode = (index) => {
+  if (nodes.value[index].type === 'intermediary') nodes.value.splice(index, 1)
+  removingMode.value = false
+  saveLane()
+}
+const addBackupToNode = (index) => {
+  if (!nodes.value[index].backups) nodes.value[index].backups = []
+  nodes.value[index].backups.push({ location: '', company: '', transportType: 'road' })
+  saveLane()
+}
+const removeBackup = (ni, bi) => {
+  nodes.value[ni].backups.splice(bi, 1)
+  saveLane()
+}
 const handleBackupClick = (ni, bi) => {
   if (removingMode.value) { removeBackup(ni, bi); removingMode.value = false }
 }
-const swapBackup   = (ni, bi) => {
+const swapBackup = (ni, bi) => {
   const node = nodes.value[ni]
   const bk   = { ...node.backups[bi] }
   const pd   = { location: node.details.location, company: node.details.company, transportType: node.details.transportType }
   node.details.location = bk.location; node.details.company = bk.company; node.details.transportType = bk.transportType
   node.backups[bi] = pd
+  saveLane()
 }
 
 // ─── Backup drag (drag backup hex onto primary to swap) ──────────
@@ -891,6 +923,7 @@ const onMouseUp = (e) => {
     }
     dragJustEnded = true
     setTimeout(() => { dragJustEnded = false }, 50)
+    saveLane()
   }
   draggedIndex.value = null
   isDragging.value   = false
@@ -902,54 +935,108 @@ const onMouseUp = (e) => {
   isPanning.value    = false
 }
 
+
+// ─── Save state ───────────────────────────────────────────────────
+const saveStatus   = ref('idle') // 'idle' | 'saving' | 'saved' | 'error'
+const loadError    = ref('')
+const currentLane  = ref(null)
+let saveTimer = null
+
+const saveLane = async () => {
+  const laneId = route.query.laneId
+  if (!laneId) return
+  clearTimeout(saveTimer)
+  saveStatus.value = 'saving'
+  try {
+    await api.put(`/lanes/${laneId}`, {
+      nodes: nodes.value.map(n => ({
+        location:     n.details.location,
+        company:      n.details.company,
+        transport:    n.details.transportType,
+        type:         n.details.facilityType,
+        certificates: n.certifications || [],
+        backups:      (n.backups || []).map(b => ({
+          location:      b.location      || '',
+          company:       b.company       || '',
+          transportType: b.transportType || 'road',
+        })),
+      }))
+    })
+    saveStatus.value = 'saved'
+    saveTimer = setTimeout(() => { saveStatus.value = 'idle' }, 2000)
+  } catch (err) {
+    saveStatus.value = 'error'
+  }
+}
+
+
 // ─── Mount / Unmount ──────────────────────────────────────────────
 onMounted(async () => {
   await nextTick()
   centerCanvas()
 
   const laneId = route.query.laneId
+
   if (laneId) {
-    const lane = lanesData.find(l => l.id === laneId)
-    if (lane) {
-      nodes.value = lane.nodes.map((n, i) => {
-        const isFirst = i === 0
-        const isLast  = i === lane.nodes.length - 1
-        const type    = isFirst ? 'origin' : isLast ? 'destination' : 'intermediary'
-        return {
-          id:      n.id,
-          type,
-          details: {
-            location:      n.location,
-            company:       n.company,
-            transportType: n.transport,
-            facilityType:  n.type || 'warehouse',
-          },
-          certifications:    n.certificates || [],
-          temperatureControl: n.temperatureControl || {},
-          validationStatus:   n.validationStatus || 'pending',
-          fragile:            n.fragile || false,
-          backups: [],
-          row:     0,
-        }
-      })
+    try {
+      const lane = await api.get(`/lanes/${laneId}`)
+      currentLane.value = lane
+
+      if (lane.nodes && lane.nodes.length > 0) {
+        nodes.value = lane.nodes.map((n, i) => {
+          const isFirst = i === 0
+          const isLast  = i === lane.nodes.length - 1
+          const type    = isFirst ? 'origin' : isLast ? 'destination' : 'intermediary'
+          return {
+            id:           n._id || Date.now() + i,
+            type,
+            details: {
+              location:      n.location  || '',
+              company:       n.company   || '',
+              transportType: n.transport || 'road',
+              facilityType:  n.type      || 'warehouse',
+            },
+            certifications: n.certificates || [],
+            backups: (n.backups || []).map(b => ({
+              location:      b.location      || '',
+              company:       b.company       || '',
+              transportType: b.transportType || 'road',
+            })),
+            row: 0,
+          }
+        })
+      }
+
+      // Apply origin/destination from lane document if nodes are empty or missing location
+      const originCity = lane.origin?.city || ''
+      const destCity   = lane.destination?.city || ''
+      if (originCity && !nodes.value[0].details.location)
+        nodes.value[0].details.location = originCity
+      if (destCity && !nodes.value[nodes.value.length - 1].details.location)
+        nodes.value[nodes.value.length - 1].details.location = destCity
+
+    } catch (err) {
+      loadError.value = 'Failed to load lane. It may have been deleted or you don\'t have access.'
     }
   } else {
-    const stored = localStorage.getItem('routeData')
-    if (stored) {
-      try {
+    // No laneId — fill origin/dest from localStorage if available
+    try {
+      const stored = localStorage.getItem('routeData')
+      if (stored) {
         const data = JSON.parse(stored)
-        if (data.origin)      nodes.value[0].details.location                          = data.origin
-        if (data.destination) nodes.value[nodes.value.length - 1].details.location     = data.destination
-      } catch (_) {}
-    }
+        if (data.origin)      nodes.value[0].details.location                      = data.origin
+        if (data.destination) nodes.value[nodes.value.length - 1].details.location = data.destination
+      }
+    } catch (_) {}
   }
 
-  viewportRef.value.addEventListener('wheel', onWheel, { passive: false })
+  viewportRef.value?.addEventListener('wheel', onWheel, { passive: false })
   window.addEventListener('mousemove', onMouseMove)
   window.addEventListener('mouseup',   onMouseUp)
 })
 
 onUnmounted(() => {
+  clearTimeout(saveTimer)
   viewportRef.value?.removeEventListener('wheel', onWheel)
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseup',   onMouseUp)
@@ -1130,6 +1217,23 @@ onUnmounted(() => {
 .toolbar-title { margin: 0 0 2px; font-size: 16px; font-weight: 600; color: var(--text-main); }
 .toolbar-sub   { margin: 0; font-size: 11px; color: var(--text-muted); }
 
+.save-ind        { font-size: 11px; }
+.save-ind.saving { color: #64748b; }
+.save-ind.saved  { color: #15803d; font-weight: 500; }
+.save-ind.error  { color: #b91c1c; }
+.save-ind.idle   { color: var(--text-muted); }
+
+.canvas-load-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: #b91c1c;
+  font-size: 14px;
+}
+
 .btn-back {
   padding: 7px 14px;
   border: 1.5px solid var(--border-color);
@@ -1201,6 +1305,10 @@ onUnmounted(() => {
 .banner-line  { flex: 1; height: 1px; background: #E8EDF2; }
 .banner-stops { font-size: 11px; color: var(--text-muted); white-space: nowrap; font-weight: 500; letter-spacing: 0.03em; }
 .banner-arrow { font-size: 16px; color: #1F7A5C; }
+.risk-badge { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; }
+.risk-badge.risk-low    { background: #dcfce7; color: #15803d; }
+.risk-badge.risk-medium { background: #fef9c3; color: #854d0e; }
+.risk-badge.risk-high   { background: #fee2e2; color: #991b1b; }
 
 /* ── Canvas viewport ── */
 .canvas-viewport {

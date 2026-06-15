@@ -36,6 +36,42 @@
       </div>
     </header>
 
+    <!-- ── FILTER BAR ── -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="filter-label">Status</span>
+        <button
+          v-for="s in statusOptions" :key="s.value"
+          class="filter-pill"
+          :class="[s.cls, { active: statusFilter === s.value }]"
+          @click="statusFilter = statusFilter === s.value ? '' : s.value"
+        >{{ s.label }}</button>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Risk</span>
+        <button
+          v-for="r in riskOptions" :key="r.value"
+          class="filter-pill"
+          :class="[r.cls, { active: riskFilter === r.value }]"
+          @click="riskFilter = riskFilter === r.value ? '' : r.value"
+        >{{ r.label }}</button>
+      </div>
+    </div>
+
+    <!-- ── LOADING STATE ── -->
+    <div v-if="isLoading" class="empty-state">
+      <p class="empty-title">Loading lanes…</p>
+    </div>
+
+    <!-- ── ERROR STATE ── -->
+    <div v-else-if="error" class="empty-state">
+      <p class="empty-title">Failed to load lanes</p>
+      <p class="empty-sub">{{ error }}</p>
+      <button class="btn-empty" @click="loadLanes">Retry</button>
+    </div>
+
+    <template v-else>
+
     <!-- ── LOADING ── -->
     <div v-if="isLoading" class="loading-state">
       <div class="loading-spinner"></div>

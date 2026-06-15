@@ -263,6 +263,7 @@
 
       <!-- STICKY FOOTER -->
       <div class="form-footer">
+        <p v-if="submitError" class="submit-error">{{ submitError }}</p>
         <div class="actions">
           <template v-if="!reviewMode">
             <button class="btn-ghost" @click="$router.push('/')">Cancel</button>
@@ -288,6 +289,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { api } from '@/services/api'
 
 const router = useRouter()
 const route  = useRoute()
@@ -452,17 +454,36 @@ const goToReview = () => {
 }
 
 const proceedToBuilder = () => {
-  localStorage.setItem('routeData', JSON.stringify({
-    origin:       routeOrigin.value,
-    destination:  routeDestination.value,
-    productType:  productType.value,
-    package:      { ...pkg },
-    tempMin:      tempMin.value,
-    tempMax:      tempMax.value,
-    isFragile:    isFragile.value,
-    certificates: selectedCertificates.value,
-  }))
-  router.push('/canvas')
+
+  isSubmitting.value = true
+  try {
+    const lane = await api.post('/lanes', {
+      origin:       { city: routeOrigin.value },
+      destination:  { city: routeDestination.value },
+      cargoProfile: {
+        productType:     productType.value,
+        weight:          Number(pkg.weight),
+        dimensions:      `${pkg.length}x${pkg.width}x${pkg.height}cm`,
+        tempRange:       `${tempMin.value}–${tempMax.value}°C`,
+        specialHandling: isFragile.value ? 'Fragile' : 'None',
+      },
+      certificates: selectedCertificates.value,
+      status: 'draft',
+    })
+
+    // Pass origin/destination to canvas via localStorage (for display only)
+    localStorage.setItem('routeData', JSON.stringify({
+      origin:       routeOrigin.value,
+      destination:  routeDestination.value,
+      certificates: selectedCertificates.value,
+    }))
+
+    router.push({ name: 'RouteCanvas', query: { laneId: lane._id } })
+  } catch (err) {
+    submitError.value = err instanceof Error ? err.message : 'Failed to save lane. Please try again.'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -525,7 +546,13 @@ const proceedToBuilder = () => {
 .form-scroll { flex: 1; overflow-y: auto; padding: 12px 56px; display: flex; flex-direction: column; }
 .form-inner  { width: 100%; max-width: 920px; margin: auto; display: flex; flex-direction: column; gap: 16px; }
 
-.form-footer { flex-shrink: 0; border-top: 1px solid var(--border-color); background: var(--bg-color); padding: 10px 56px; box-shadow: 0 -4px 16px rgba(0,0,0,.05); }
+.form-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-color);
+  padding: 10px 56px;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.05);
+}
 
 /* ── Cards ── */
 .card {

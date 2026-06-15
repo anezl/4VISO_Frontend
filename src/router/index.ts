@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { api, getAuthToken, clearAuthSession } from '../services/api'
+import { getAuthToken } from '../services/api'
 
 import Dashboard from '../pages/Dashboard.vue'
 import CreateRoute from '../pages/CreateRoute.vue'
@@ -16,21 +17,25 @@ const routes = [
     path: '/',
     name: 'Dashboard',
     component: Dashboard,
+    meta: { requiresAuth: true },
   },
   {
     path: '/create',
     name: 'CreateRoute',
     component: CreateRoute,
+    meta: { requiresAuth: true },
   },
   {
     path: '/canvas',
     name: 'RouteCanvas',
     component: RouteCanvas,
+    meta: { requiresAuth: true },
   },
   {
     path: '/lanes',
     name: 'Lanes',
     component: Lanes,
+    meta: { requiresAuth: true },
   },
   {
     path: '/login',
@@ -48,16 +53,19 @@ const routes = [
     path: '/profile',
     name: 'Profile',
     component: Profile,
+    meta: { requiresAuth: true },
   },
   {
     path: '/settings',
     name: 'Settings',
     component: Settings,
+    meta: { requiresAuth: true },
   },
   {
     path: '/notifications',
     name: 'Notifications',
     component: Notifications,
+    meta: { requiresAuth: true },
   },
 ]
 
