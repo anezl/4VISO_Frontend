@@ -257,7 +257,7 @@ const selectedTempBlock = ref('')
 const isFragile = ref(false)
 
 const selectedCertificates = ref([])
-const certificatesList = ['GDP', 'IATA', 'ISO 9001', 'ISO 13485', 'ISO 28000']
+const certificatesList = ['GDP', 'ISO 9001', 'ISO 13485', 'ISO 28000']
 
 const showErrors   = ref(false)
 const isSubmitting = ref(false)
@@ -270,8 +270,8 @@ const productTypeName = computed(() => {
 
 const CERT_REQUIREMENTS = {
   pharmaceutical:  { required: ['GDP'],           recommended: ['ISO 9001'] },
-  vaccines:        { required: ['GDP', 'IATA'],   recommended: ['ISO 13485'] },
-  biological:      { required: ['GDP', 'IATA'],   recommended: ['ISO 13485'] },
+  vaccines:        { required: ['GDP'],   recommended: ['ISO 13485'] },
+  biological:      { required: ['GDP'],   recommended: ['ISO 13485'] },
   medical_devices: { required: ['ISO 13485'],     recommended: ['GDP', 'ISO 28000'] },
 }
 
