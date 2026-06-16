@@ -801,7 +801,7 @@ const finishLane = async () => {
   isFinishing.value = true
   const laneId = route.query.laneId
   try {
-    if (laneId) await api.put(`/lanes/${laneId}`, { ...buildPayload(), status: 'active' })
+    if (laneId) await api.put(`/lanes/${laneId}`, buildPayload())
   } catch {}
   saveToLocalStorage()
   isFinishing.value = false

@@ -55,7 +55,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, clearAuthSession, setAuthSession, type AuthUser } from '../services/api'
+import { api, setAuthSession, type AuthUser } from '../services/api'
 
 interface RegisterResponse {
   message: string
@@ -108,7 +108,6 @@ const handleRegister = async () => {
     setAuthSession(data.token, data.user)
     await router.push({ name: 'Dashboard' })
   } catch (error) {
-    clearAuthSession()
     errorMessage.value = error instanceof Error
       ? error.message
       : 'Registration failed. Please try again.'

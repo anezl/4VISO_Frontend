@@ -20,17 +20,21 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
         <div class="profile-info">
-          <span class="name">Stefan Hollands</span>
-          <span class="role">4VISO</span>
+          <span class="name">{{ currentUser?.name || 'User' }}</span>
+          <span class="role">{{ currentUser?.role || '4VISO' }}</span>
         </div>
       </div>
     </div>
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { getAuthUser } from '@/services/api'
+
 const router = useRouter()
+const currentUser = computed(() => getAuthUser())
 </script>
 
 <style scoped>

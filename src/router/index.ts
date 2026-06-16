@@ -7,6 +7,8 @@ import RouteCanvas from '../pages/RouteCanvas.vue'
 import Lanes from '../pages/Lanes.vue'
 import Login from '../pages/Login.vue'
 import Register from '../pages/Register.vue'
+import RegisterSuccess from '../pages/RegisterSuccess.vue'
+import VerifyEmail from '../pages/VerifyEmail.vue'
 import Profile from '../pages/Profile.vue'
 import Settings from '../pages/Settings.vue'
 import Notifications from '../pages/Notifications.vue'
@@ -47,6 +49,18 @@ const routes = [
     path: '/register',
     name: 'Register',
     component: Register,
+    meta: { hideLayout: true, public: true },
+  },
+  {
+    path: '/register-success',
+    name: 'RegisterSuccess',
+    component: RegisterSuccess,
+    meta: { hideLayout: true, public: true },
+  },
+  {
+    path: '/verify-email',
+    name: 'VerifyEmail',
+    component: VerifyEmail,
     meta: { hideLayout: true, public: true },
   },
   {

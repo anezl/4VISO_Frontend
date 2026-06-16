@@ -19,9 +19,9 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
             <div class="profile-info">
-              <h3 class="user-name">Stefan Hollands</h3>
-              <p class="user-role">Logistics Manager</p>
-              <p class="user-email">stefan@4viso.com</p>
+              <h3 class="user-name">{{ currentUser?.name || '—' }}</h3>
+              <p class="user-role">{{ currentUser?.role || '—' }}</p>
+              <p class="user-email">{{ currentUser?.email || '—' }}</p>
             </div>
           </div>
 
@@ -135,7 +135,11 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
+import { computed } from 'vue'
+import { getAuthUser } from '@/services/api'
+
+const currentUser = computed(() => getAuthUser())
 </script>
 
 <style scoped>
