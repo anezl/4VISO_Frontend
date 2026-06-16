@@ -7,8 +7,9 @@
     <div class="dashboard-content">
 
       <div class="header-section">
-        <h1>Lane Risk Assessment</h1>
-        <p>Analyze and optimize your supply chain routes with AI-powered risk scoring.</p>
+        <h1>Risk Lane Assessment</h1>
+        <p>Analyze and optimize your supply chain routes</p>
+        <p>Project Lab w/ Collin Van der Vorst</p>
       </div>
 
       <div class="search-card">
