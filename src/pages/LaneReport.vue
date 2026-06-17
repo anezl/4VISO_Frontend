@@ -39,6 +39,10 @@
       <!-- ══ HERO BANNER ══ -->
       <div class="hero-band no-print">
         <div class="hero-left">
+          <div class="hero-brand">
+            <img src="/4VISO_Logo.png" alt="4VISO" class="hero-logo" />
+            <span class="hero-report-label">Route Risk Report</span>
+          </div>
           <div class="hero-route">
             <span class="hero-city">{{ lane.origin?.city || 'Origin' }}</span>
             <span class="hero-arrow">→</span>
@@ -660,6 +664,9 @@ const printReport = () => window.print()
   flex-wrap: wrap;
 }
 .hero-left  { display: flex; flex-direction: column; gap: 12px; }
+.hero-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.hero-logo   { height: 22px; object-fit: contain; filter: brightness(0) invert(1); opacity: 0.9; }
+.hero-report-label { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.1em; }
 .hero-route { display: flex; align-items: center; gap: 12px; }
 .hero-city  { font-size: 26px; font-weight: 800; color: white; letter-spacing: -0.02em; }
 .hero-arrow { font-size: 22px; color: #1F7A5C; }

@@ -621,5 +621,53 @@
         "fragile": true
       }
     ]
+  },
+  {
+    "id": "lane-007",
+    "name": "London → Istanbul",
+    "origin": { "city": "London", "country": "UK", "code": "LHR", "company": "World Courier" },
+    "destination": { "city": "Istanbul", "country": "Türkiye", "code": "IST", "company": "PharmaTR" },
+    "productType": "Biological",
+    "tempBlock": "frozen",
+    "certificates": ["GDP", "ISO 13485", "IATA"],
+    "createdAt": "2025-05-03",
+    "nodes": [
+      { "id": "node-007-1",  "location": "London",                      "company": "World Courier",             "type": "warehouse",    "transport": "road", "validationStatus": "validated",     "certificates": ["GDP","ISO 13485","IATA"],       "temperatureControl": {"min":-20,"max":-10}, "fragile": true  },
+      { "id": "node-007-2",  "location": "London Heathrow",             "company": "IAG Cargo",                 "type": "airport",      "transport": "air",  "validationStatus": "validated",     "certificates": ["IATA","GDP"],                   "temperatureControl": {"min":-20,"max":-10}, "fragile": false },
+      { "id": "node-007-3",  "location": "Brussels Airport",            "company": "Brussels Airlines Cargo",   "type": "airport",      "transport": "air",  "validationStatus": "validated",     "certificates": ["IATA","GDP"],                   "temperatureControl": {"min":-20,"max":-10}, "fragile": false },
+      { "id": "node-007-4",  "location": "Mechelen",                    "company": "Movianto Mechelen",         "type": "warehouse",    "transport": "road", "validationStatus": "validated",     "certificates": ["GDP","ISO 13485","ISO 9001"],   "temperatureControl": {"min":-20,"max":-10}, "fragile": true  },
+      { "id": "node-007-5",  "location": "Frankfurt Airport",           "company": "Lufthansa Cargo",           "type": "airport",      "transport": "air",  "validationStatus": "validated",     "certificates": ["IATA","GDP"],                   "temperatureControl": {"min":-20,"max":-10}, "fragile": false },
+      { "id": "node-007-6",  "location": "Frankfurt",                   "company": "DHL Pharma Hub Frankfurt",  "type": "warehouse",    "transport": "road", "validationStatus": "validated",     "certificates": ["GDP","ISO 9001","ISO 13485","IATA"], "temperatureControl": {"min":-20,"max":-10}, "fragile": true },
+      { "id": "node-007-7",  "location": "Vienna",                      "company": "DB Schenker",               "type": "hub",          "transport": "road", "validationStatus": "pending",       "certificates": ["GDP","ISO 9001"],               "temperatureControl": {"min":-20,"max":-10}, "fragile": false },
+      { "id": "node-007-8",  "location": "Vienna Airport",              "company": "Austrian Cargo",            "type": "airport",      "transport": "air",  "validationStatus": "pending",       "certificates": ["IATA"],                          "temperatureControl": null,                  "fragile": false },
+      { "id": "node-007-9",  "location": "Sofia",                       "company": "DSV Panalpina",             "type": "hub",          "transport": "road", "validationStatus": "pending",       "certificates": ["GDP","IATA"],                   "temperatureControl": null,                  "fragile": false },
+      { "id": "node-007-10", "location": "Sofia Airport",               "company": "Bulgaria Air Cargo",        "type": "airport",      "transport": "air",  "validationStatus": "not_validated", "certificates": [],                               "temperatureControl": null,                  "fragile": false },
+      { "id": "node-007-11", "location": "Istanbul Airport",            "company": "Turkish Cargo",             "type": "airport",      "transport": "air",  "validationStatus": "not_validated", "certificates": ["IATA"],                          "temperatureControl": null,                  "fragile": false },
+      { "id": "node-007-12", "location": "Istanbul",                    "company": "PharmaTR",                  "type": "warehouse",    "transport": "road", "validationStatus": "not_validated", "certificates": [],                               "temperatureControl": null,                  "fragile": false }
+    ]
+  },
+  {
+    "id": "lane-008",
+    "name": "Stockholm → Casablanca",
+    "origin": { "city": "Stockholm", "country": "Sweden", "code": "ARN", "company": "NordicPharma" },
+    "destination": { "city": "Casablanca", "country": "Morocco", "code": "CMN", "company": "PharmaMA" },
+    "productType": "Pharmaceutical",
+    "tempBlock": "cold",
+    "certificates": ["GDP", "ISO 9001"],
+    "createdAt": "2025-06-01",
+    "nodes": [
+      { "id": "node-008-1",  "location": "Stockholm",                   "company": "NordicPharma",              "type": "warehouse",    "transport": "road", "validationStatus": "validated",     "certificates": ["GDP","ISO 13485"],              "temperatureControl": {"min":2,"max":8},    "fragile": true  },
+      { "id": "node-008-2",  "location": "Stockholm Arlanda",           "company": "SAS Cargo",                 "type": "airport",      "transport": "air",  "validationStatus": "validated",     "certificates": ["IATA","GDP"],                   "temperatureControl": {"min":2,"max":8},    "fragile": false },
+      { "id": "node-008-3",  "location": "Copenhagen Airport",          "company": "SAS Cargo",                 "type": "airport",      "transport": "air",  "validationStatus": "validated",     "certificates": ["IATA","GDP","ISO 13485"],       "temperatureControl": {"min":2,"max":8},    "fragile": false },
+      { "id": "node-008-4",  "location": "Copenhagen Distribution Center","company": "NordDist",               "type": "warehouse",    "transport": "road", "validationStatus": "validated",     "certificates": ["GDP","ISO 9001"],               "temperatureControl": {"min":2,"max":8},    "fragile": false },
+      { "id": "node-008-5",  "location": "Hamburg",                     "company": "Kuehne+Nagel",              "type": "hub",          "transport": "road", "validationStatus": "validated",     "certificates": ["GDP","IATA","ISO 9001"],        "temperatureControl": {"min":2,"max":8},    "fragile": true  },
+      { "id": "node-008-6",  "location": "Paris Charles de Gaulle",     "company": "Air France Cargo",          "type": "airport",      "transport": "air",  "validationStatus": "validated",     "certificates": ["IATA","GDP"],                   "temperatureControl": {"min":2,"max":8},    "fragile": false },
+      { "id": "node-008-7",  "location": "Paris Pharma Hub",            "company": "Geodis Paris Pharma",       "type": "warehouse",    "transport": "road", "validationStatus": "validated",     "certificates": ["GDP","ISO 13485","ISO 9001"],   "temperatureControl": {"min":2,"max":8},    "fragile": true  },
+      { "id": "node-008-8",  "location": "Madrid Barajas",              "company": "Iberia Cargo",              "type": "airport",      "transport": "air",  "validationStatus": "validated",     "certificates": ["IATA","GDP","ISO 28000"],       "temperatureControl": {"min":2,"max":8},    "fragile": false },
+      { "id": "node-008-9",  "location": "Madrid Cold Hub",             "company": "ColdChain ES",              "type": "warehouse",    "transport": "road", "validationStatus": "validated",     "certificates": ["GDP","ISO 13485"],              "temperatureControl": {"min":2,"max":8},    "fragile": true  },
+      { "id": "node-008-10", "location": "Lisbon Humberto Delgado Airport","company": "TAP Cargo",             "type": "airport",      "transport": "air",  "validationStatus": "pending",       "certificates": ["IATA","GDP"],                   "temperatureControl": {"min":2,"max":8},    "fragile": false },
+      { "id": "node-008-11", "location": "Casablanca Mohammed V Airport","company": "Royal Air Maroc Cargo",   "type": "airport",      "transport": "air",  "validationStatus": "not_validated", "certificates": ["IATA"],                          "temperatureControl": null,                  "fragile": false },
+      { "id": "node-008-12", "location": "Casablanca",                  "company": "PharmaMA",                  "type": "warehouse",    "transport": "road", "validationStatus": "not_validated", "certificates": [],                               "temperatureControl": null,                  "fragile": false }
+    ]
   }
 ]

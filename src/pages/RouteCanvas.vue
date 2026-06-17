@@ -338,6 +338,7 @@ import { ref, computed, reactive, onMounted, onBeforeUnmount, nextTick } from 'v
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/services/api'
 import { searchCompanies, searchLocations, getAllCompanies, TRANSPORT_COMPANIES, WAREHOUSES, AIRPORTS } from '@/data/companies'
+import staticLanes from '@/data/lanes.json'
 import { TEMP_BLOCKS, TRANSPORT_TEMP_RISK } from '@/data/tempBlocks'
 import { searchCities } from '@/data/worldCities'
 
@@ -845,10 +846,13 @@ onMounted(async () => {
         nodes.value[nodes.value.length - 1].details.location = destCity
 
     } catch {
-      // API unavailable — restore full lane from savedLanes, fall back to routeData
+      // API unavailable — check savedLanes, then static lanes.json, then routeData
       try {
-        const saved = JSON.parse(localStorage.getItem('savedLanes') || '[]')
-        const found = saved.find(l => String(l.id) === String(laneId))
+        const savedLanes = JSON.parse(localStorage.getItem('savedLanes') || '[]')
+        const found =
+          savedLanes.find(l => String(l.id) === String(laneId)) ||
+          staticLanes.find(l => String(l.id) === String(laneId))
+
         if (found && found.nodes && found.nodes.length > 0) {
           nodes.value = found.nodes.map((n, i) => {
             const isFirst = i === 0
@@ -872,6 +876,13 @@ onMounted(async () => {
               validationStatus: n.validationStatus || 'pending',
             }
           })
+          // Patch origin/destination cities from top-level lane metadata if nodes lack them
+          const originCity = found.origin?.city || ''
+          const destCity   = found.destination?.city || ''
+          if (originCity && !nodes.value[0].details.location)
+            nodes.value[0].details.location = originCity
+          if (destCity && !nodes.value[nodes.value.length - 1].details.location)
+            nodes.value[nodes.value.length - 1].details.location = destCity
         } else {
           const data = JSON.parse(localStorage.getItem('routeData') || '{}')
           if (data.origin)      nodes.value[0].details.location = data.origin
