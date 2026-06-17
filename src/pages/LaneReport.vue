@@ -184,20 +184,19 @@
         <div class="card-head">
           <span class="card-head-num">04</span>
           <span class="card-head-title">Node Risk Profile</span>
-          <span class="card-head-sub">Per-node temperature · fragile · certificates · validation</span>
+          <span class="card-head-sub">Per-node temperature · fragile · certificates</span>
         </div>
 
         <div class="matrix-wrap">
           <table class="matrix-table">
             <thead>
               <tr>
-                <th class="mth-sticky">#</th>
-                <th class="mth-sticky">Role</th>
-                <th class="mth-sticky">Location / Company</th>
-                <th>Temp Capable</th>
-                <th>Fragile Capable</th>
+                <th class="mth-sticky" style="width:36px">#</th>
+                <th class="mth-sticky" style="width:90px">Role</th>
+                <th class="mth-sticky" style="width:22%">Location / Company</th>
+                <th style="width:22%">Temp Capable</th>
+                <th style="width:18%">Fragile Capable</th>
                 <th>Certificates</th>
-                <th>Validation</th>
               </tr>
             </thead>
             <tbody>
@@ -222,19 +221,16 @@
                     <span class="cap-cell-txt">{{ nodeCapFragile(node).reason }}</span>
                   </div>
                 </td>
-                <td class="mtd-certs">
-                  <span v-if="!node.certificates?.length" class="cert-none">None registered</span>
-                  <template v-else>
-                    <span v-for="cert in (node.certificates || [])" :key="cert"
-                      class="cert-chip"
-                      :class="(lane.certificates || []).includes(cert) ? 'cc-req' : 'cc-extra'">{{ cert }}</span>
-                  </template>
-                  <span v-for="cert in missingCerts(node)" :key="'m-'+cert" class="cert-chip cc-miss">⚠ {{ cert }}</span>
-                </td>
                 <td>
-                  <span class="val-pill" :class="'vp-' + (node.validationStatus || 'pending')">
-                    {{ node.validationStatus || 'pending' }}
-                  </span>
+                  <div class="mtd-certs">
+                    <span v-if="!node.certificates?.length" class="cert-none">None registered</span>
+                    <template v-else>
+                      <span v-for="cert in (node.certificates || [])" :key="cert"
+                        class="cert-chip"
+                        :class="(lane.certificates || []).includes(cert) ? 'cc-req' : 'cc-extra'">{{ cert }}</span>
+                    </template>
+                    <span v-for="cert in missingCerts(node)" :key="'m-'+cert" class="cert-chip cc-miss">⚠ {{ cert }}</span>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -288,6 +284,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { TEMP_BLOCKS, TRANSPORT_TEMP_RISK } from '@/data/tempBlocks'
 import { TRANSPORT_COMPANIES, WAREHOUSES, AIRPORTS } from '@/data/companies'
+import { computeRiskScore } from '@/composables/useRiskScore'
 
 const router = useRouter()
 const route  = useRoute()
@@ -452,14 +449,17 @@ const compliance = computed(() => {
 
 // ─── Risk score ───────────────────────────────────────────────────
 const riskScore = computed(() => {
-  const counts = riskResult.value.counts
-  let score = 100
-  score -= (counts.critical || 0) * 20
-  score -= (counts.warning  || 0) * 10
-  score = Math.max(0, score)
-  const level = score >= 75 ? 'LOW' : score >= 45 ? 'MEDIUM' : 'HIGH'
-  const label = level === 'LOW' ? 'Low Risk' : level === 'MEDIUM' ? 'Medium Risk' : 'High Risk'
-  return { score, level, label }
+  if (!lane.value || !(lane.value.nodes || []).length)
+    return { score: 100, level: 'LOW', label: 'Low Risk' }
+  const { score, label } = computeRiskScore(
+    lane.value.nodes,
+    lane.value.certificates || [],
+    effectiveTempBlock.value
+  )
+  // LaneReport CSS classes use 'LOW'/'MEDIUM'/'HIGH' (sr-LOW, vb-LOW, cs-LOW)
+  const level     = label
+  const labelFull = label === 'LOW' ? 'Low Risk' : label === 'MEDIUM' ? 'Medium Risk' : 'High Risk'
+  return { score, level, label: labelFull }
 })
 
 // ─── Risk categories ─────────────────────────────────────────────
@@ -521,18 +521,16 @@ const riskCategories = computed(() => {
     issues: certIssues,
   })
 
-  // Handling & Validation
+  // Handling
   const handlingIssues = []
   nodes.forEach(n => {
     const fc = nodeCapFragile(n)
     if (!fc.na && !fc.ok) handlingIssues.push(`${n.location || 'Node'}: ${fc.reason}`)
-    if (n.validationStatus === 'not_validated') handlingIssues.push(`${n.location || 'Node'}: node not validated`)
-    else if (n.validationStatus === 'pending')  handlingIssues.push(`${n.location || 'Node'}: validation pending`)
   })
   cats.push({
-    key: 'handling', icon: '📦', label: 'Handling & Validation',
-    level: handlingIssues.some(i => i.includes('not validated')) ? 'high' : handlingIssues.length > 0 ? 'medium' : 'low',
-    summary: handlingIssues.length ? `${handlingIssues.length} handling or validation concern${handlingIssues.length > 1 ? 's' : ''}` : 'Handling and validation requirements met',
+    key: 'handling', icon: '📦', label: 'Handling',
+    level: handlingIssues.length > 1 ? 'high' : handlingIssues.length === 1 ? 'medium' : 'low',
+    summary: handlingIssues.length ? `${handlingIssues.length} fragile handling concern${handlingIssues.length > 1 ? 's' : ''}` : 'Fragile handling requirements met',
     issues: handlingIssues,
   })
 
@@ -571,10 +569,6 @@ const riskResult = computed(() => {
 
   nodes.forEach(n => {
     const loc = n.location || 'Unknown'
-    if (n.validationStatus === 'not_validated')
-      alerts.push({ severity: 'critical', node: loc, message: `${loc}: not validated — shipments may be non-compliant.` })
-    else if (n.validationStatus === 'pending')
-      alerts.push({ severity: 'warning', node: loc, message: `${loc}: awaiting validation review.` })
 
     const missing = required.filter(c => !(n.certificates || []).includes(c))
     if (missing.length)
@@ -626,26 +620,27 @@ const printReport = () => window.print()
 .rpt-nav {
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 40px; height: 60px;
-  background: var(--primary);
+  background: var(--surface-color);
   position: sticky; top: 0; z-index: 20;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  border-bottom: 1px solid var(--border-color);
 }
 .rpt-nav-left  { display: flex; align-items: center; gap: 16px; }
-.rpt-nav-divider { width: 1px; height: 24px; background: rgba(255,255,255,0.2); }
-.rpt-nav-title { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.75); letter-spacing: 0.02em; }
+.rpt-nav-divider { width: 1px; height: 24px; background: var(--border-color); }
+.rpt-nav-title { font-size: 14px; font-weight: 600; color: #1e293b; letter-spacing: 0.05em; }
 .rpt-nav-right { display: flex; gap: 10px; }
 
 
 
 .btn-back {
-  padding: 7px 16px; background: transparent; color: rgba(255,255,255,0.65);
-  border: 1px solid rgba(255,255,255,0.2); border-radius: 7px;
+  padding: 7px 16px; background: transparent; color: #64748b;
+  border: 1px solid var(--border-color); border-radius: 6px;
   font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; transition: all 0.15s;
 }
-.btn-back:hover { background: rgba(255,255,255,0.08); color: white; }
+.btn-back:hover { background: #f1f5f9; color: #1e293b; }
 .btn-pdf {
   padding: 7px 18px; background: var(--primary); color: white;
-  border: none; border-radius: 7px; font-size: 13px; font-weight: 600;
+  border: none; border-radius: 6px; font-size: 13px; font-weight: 600;
   cursor: pointer; font-family: inherit; transition: background 0.15s;
 }
 .btn-pdf:hover { background: var(--primary-light); }

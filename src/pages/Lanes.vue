@@ -109,6 +109,9 @@
                 <span class="comp-status">{{ complianceMap[lane.id]?.status }}</span>
                 <span class="comp-fraction">{{ complianceMap[lane.id]?.passed }}/{{ complianceMap[lane.id]?.total }}</span>
               </span>
+              <span class="risk-score-pill" :class="'rsp-' + laneRisk(lane).level">
+                {{ laneRisk(lane).score }}/100
+              </span>
               <span class="lane-name">{{ laneName(lane) }}</span>
               <span class="product-pill" :class="productClass(laneProduct(lane))">{{ laneProduct(lane) }}</span>
               <span v-if="lane.status && lane.status !== 'draft'" class="lane-status-badge" :class="'ls-' + lane.status">{{ lane.status }}</span>
@@ -342,6 +345,7 @@ import { api } from '../services/api'
 import lanesData from '@/data/lanes.json'
 import { TRANSPORT_COMPANIES, WAREHOUSES, AIRPORTS, searchEntities } from '@/data/companies'
 import { TRANSPORT_TEMP_RISK } from '@/data/tempBlocks'
+import { computeRiskScore } from '@/composables/useRiskScore'
 
 // ── Company certificate lookup map ─────────────────────────────
 const CARRIER_CERTS = new Map()
@@ -375,7 +379,6 @@ const statusOptions = [
 const riskOptions = [
   { value: 'critical', label: 'Critical', cls: 'fp-red'  },
   { value: 'warning',  label: 'Warning',  cls: 'fp-amber' },
-  { value: 'info',     label: 'Info',     cls: 'fp-blue' },
   { value: 'ok',       label: 'Clear',    cls: 'fp-green' },
 ]
 
@@ -469,12 +472,7 @@ const laneCompliance = (lane) => {
     if (missing.length) certFails.push(`${n.location}: missing ${missing.join(', ')}`)
   })
 
-  // 2. Node validation — all nodes validated
-  const validationFails = nodes
-    .filter(n => n.validationStatus !== 'validated')
-    .map(n => `${n.location}: ${n.validationStatus === 'pending' ? 'pending review' : 'not validated'}`)
-
-  // 3. Temperature Chain — transport modes must be appropriate for the cargo's temp block
+  // 2. Temperature Chain — transport modes must be appropriate for the cargo's temp block
   const tempBlock = lane.tempBlock || lane.cargoProfile?.tempBlock || ''
   const tempFails = []
   if (tempBlock && tempBlock !== 'ambient') {
@@ -498,10 +496,9 @@ const laneCompliance = (lane) => {
   })
 
   const checks = [
-    { key: 'certCoverage', label: 'Certificate Coverage', ok: certFails.length === 0,       fails: certFails,       skip: false },
-    { key: 'validation',   label: 'Node Validation',      ok: validationFails.length === 0,  fails: validationFails, skip: false },
-    { key: 'tempChain',    label: 'Temperature Chain',    ok: tempFails.length === 0,        fails: tempFails,       skip: !hasTemp },
-    { key: 'carrier',      label: 'Carrier Compliance',   ok: carrierFails.length === 0,     fails: carrierFails,    skip: false },
+    { key: 'certCoverage', label: 'Certificate Coverage', ok: certFails.length === 0,    fails: certFails,    skip: false },
+    { key: 'tempChain',    label: 'Temperature Chain',    ok: tempFails.length === 0,    fails: tempFails,    skip: !hasTemp },
+    { key: 'carrier',      label: 'Carrier Compliance',   ok: carrierFails.length === 0, fails: carrierFails, skip: false },
   ]
 
   const passed = checks.filter(c => c.ok).length
@@ -518,13 +515,6 @@ const laneCompliance = (lane) => {
 const nodeAlerts = (node, lane) => {
   const alerts = []
   const loc = node.location || 'Unknown'
-
-  if (node.validationStatus === 'not_validated') {
-    alerts.push({ severity: 'critical', short: 'Not validated', message: `${loc} has not been validated. Shipments may be non-compliant.`, node: loc })
-  }
-  if (node.validationStatus === 'pending') {
-    alerts.push({ severity: 'warning', short: 'Pending review', message: `${loc} is awaiting validation review.`, node: loc })
-  }
 
   const required = lane.certificates || []
   const held     = node.certificates || []
@@ -559,14 +549,12 @@ const nodeAlerts = (node, lane) => {
 }
 
 const laneRisk = (lane) => {
-  const alerts = lane.nodes.flatMap(n => nodeAlerts(n, lane))
-  const counts = { critical: 0, warning: 0, info: 0 }
-  alerts.forEach(a => counts[a.severity]++)
-  let level = 'ok', label = 'All clear'
-  if      (counts.critical > 0) { level = 'critical'; label = `${counts.critical} critical risk${counts.critical > 1 ? 's' : ''}` }
-  else if (counts.warning  > 0) { level = 'warning';  label = `${counts.warning} warning${counts.warning > 1 ? 's' : ''}` }
-  else if (counts.info     > 0) { level = 'info';     label = `${counts.info} note${counts.info > 1 ? 's' : ''}` }
-  return { level, label, alerts, counts }
+  const alerts = (lane.nodes || []).flatMap(n => nodeAlerts(n, lane))
+  const counts  = { critical: 0, warning: 0, info: 0 }
+  alerts.forEach(a => { counts[a.severity] = (counts[a.severity] || 0) + 1 })
+  const tb       = lane.tempBlock || lane.cargoProfile?.tempBlock || ''
+  const { score, level, label } = computeRiskScore(lane.nodes || [], lane.certificates || [], tb)
+  return { score, level, label, alerts, counts }
 }
 
 // ── Delete lane ─────────────────────────────────────────────────
@@ -761,6 +749,14 @@ const transportClass = (t) => t || 'road'
 .lane-title-left  { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .lane-title-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .lane-name  { font-size: 15px; font-weight: 600; color: #0f172a; letter-spacing: -0.2px; }
+.risk-score-pill {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+  border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+  border: 1px solid currentColor; flex-shrink: 0;
+}
+.rsp-ok       { background: #dcfce7; color: #15803d; border-color: #86efac; }
+.rsp-warning  { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+.rsp-critical { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
 .lane-date  { font-size: 11.5px; color: #94a3b8; }
 
 /* Compliance badge */
