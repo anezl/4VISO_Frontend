@@ -9,7 +9,7 @@
         <span class="rpt-nav-title">Route Risk Report</span>
       </div>
       <div class="rpt-nav-right">
-        <button class="btn-back" @click="$router.push('/lanes')">← Back to Lanes</button>
+        <button class="btn-back" @click="$router.push($route.query.laneId ? '/canvas?laneId=' + $route.query.laneId : '/lanes')">← Back to Route</button>
         <button class="btn-pdf" @click="printReport">⬇ Download PDF</button>
       </div>
     </div>

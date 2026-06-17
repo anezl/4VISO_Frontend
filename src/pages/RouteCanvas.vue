@@ -845,11 +845,38 @@ onMounted(async () => {
         nodes.value[nodes.value.length - 1].details.location = destCity
 
     } catch {
-      // API unavailable in BYPASS_AUTH mode — prefill from localStorage
+      // API unavailable — restore full lane from savedLanes, fall back to routeData
       try {
-        const data = JSON.parse(localStorage.getItem('routeData') || '{}')
-        if (data.origin)      nodes.value[0].details.location = data.origin
-        if (data.destination) nodes.value[nodes.value.length - 1].details.location = data.destination
+        const saved = JSON.parse(localStorage.getItem('savedLanes') || '[]')
+        const found = saved.find(l => String(l.id) === String(laneId))
+        if (found && found.nodes && found.nodes.length > 0) {
+          nodes.value = found.nodes.map((n, i) => {
+            const isFirst = i === 0
+            const isLast  = i === found.nodes.length - 1
+            const type    = isFirst ? 'origin' : isLast ? 'destination' : 'intermediary'
+            return {
+              id: nextId++, type,
+              details: {
+                location:         n.location         || '',
+                company:          n.company          || '',
+                transportType:    n.transport        || 'road',
+                facilityType:     n.type             || 'warehouse',
+                transportCompany: n.transportCompany || '',
+              },
+              certifications:  n.certificates || [],
+              backups: (n.backups || []).map(b => ({
+                location:      b.location      || '',
+                company:       b.company       || '',
+                transportType: b.transportType || 'road',
+              })),
+              validationStatus: n.validationStatus || 'pending',
+            }
+          })
+        } else {
+          const data = JSON.parse(localStorage.getItem('routeData') || '{}')
+          if (data.origin)      nodes.value[0].details.location = data.origin
+          if (data.destination) nodes.value[nodes.value.length - 1].details.location = data.destination
+        }
       } catch (_) {}
     }
   } else {
