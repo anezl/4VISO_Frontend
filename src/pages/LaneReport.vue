@@ -636,7 +636,6 @@ const printReport = () => window.print()
   box-shadow: 0 2px 12px rgba(0,0,0,0.25);
 }
 .rpt-nav-left  { display: flex; align-items: center; gap: 16px; }
-.rpt-nav-logo  { height: 28px; object-fit: contain; filter: brightness(0) invert(1); }
 .rpt-nav-divider { width: 1px; height: 24px; background: rgba(255,255,255,0.2); }
 .rpt-nav-title { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.75); letter-spacing: 0.02em; }
 .rpt-nav-right { display: flex; gap: 10px; }
