@@ -88,7 +88,6 @@
               <span class="cert-item">✓ GDP</span>
               <span class="cert-item">✓ ISO 9001</span>
               <span class="cert-item">✓ ISO 13485</span>
-              <span class="cert-item">✓ IATA</span>
             </div>
           </div>
         </div>

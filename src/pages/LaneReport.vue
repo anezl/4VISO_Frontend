@@ -438,20 +438,15 @@ const compliance = computed(() => {
     if (miss.length) carrierFails.push(`${n.company}: missing ${miss.join(', ')}`)
   })
 
-  const airFails = nodes
-    .filter(n => n.transport === 'air' && !(n.certificates || []).includes('IATA'))
-    .map(n => `${n.location || 'Node'}: air transport without IATA`)
-
   const checks = [
     { key: 'certCoverage', label: 'Certificate Coverage', ok: certFails.length === 0,  fails: certFails,   skip: false },
     { key: 'validation',   label: 'Node Validation',      ok: valFails.length === 0,    fails: valFails,    skip: false },
     { key: 'tempChain',    label: 'Temperature Chain',    ok: tempFails.length === 0,   fails: tempFails,   skip: !tb || tb === 'ambient' },
     { key: 'carrier',      label: 'Carrier Compliance',   ok: carrierFails.length === 0,fails: carrierFails,skip: false },
-    { key: 'airTransport', label: 'Air Transport',        ok: airFails.length === 0,    fails: airFails,    skip: !nodes.some(n => n.transport === 'air') },
   ]
 
   const passed = checks.filter(c => c.ok).length
-  const status = passed === 5 ? 'COMPLIANT' : passed >= 3 ? 'CONDITIONAL' : passed >= 1 ? 'NON-COMPLIANT' : 'CRITICAL'
+  const status = passed === checks.length ? 'COMPLIANT' : passed >= 3 ? 'CONDITIONAL' : passed >= 1 ? 'NON-COMPLIANT' : 'CRITICAL'
   return { status, passed, total: checks.length, checks }
 })
 

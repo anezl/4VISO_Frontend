@@ -497,23 +497,16 @@ const laneCompliance = (lane) => {
     if (missing.length) carrierFails.push(`${n.company}: missing ${missing.join(', ')}`)
   })
 
-  // 5. Air transport — all air nodes hold IATA
-  const hasAirNodes = nodes.some(n => n.transport === 'air')
-  const airFails    = nodes
-    .filter(n => n.transport === 'air' && !(n.certificates || []).includes('IATA'))
-    .map(n => `${n.location}: air transport without IATA`)
-
   const checks = [
     { key: 'certCoverage', label: 'Certificate Coverage', ok: certFails.length === 0,       fails: certFails,       skip: false },
     { key: 'validation',   label: 'Node Validation',      ok: validationFails.length === 0,  fails: validationFails, skip: false },
     { key: 'tempChain',    label: 'Temperature Chain',    ok: tempFails.length === 0,        fails: tempFails,       skip: !hasTemp },
     { key: 'carrier',      label: 'Carrier Compliance',   ok: carrierFails.length === 0,     fails: carrierFails,    skip: false },
-    { key: 'airTransport', label: 'Air Transport',        ok: airFails.length === 0,         fails: airFails,        skip: !hasAirNodes },
   ]
 
   const passed = checks.filter(c => c.ok).length
   const total  = checks.length
-  const status = passed === 5 ? 'COMPLIANT'
+  const status = passed === total ? 'COMPLIANT'
     : passed >= 3 ? 'CONDITIONAL'
     : passed >= 1 ? 'NON-COMPLIANT'
     : 'CRITICAL'
