@@ -4,8 +4,6 @@
     <!-- ── SCREEN NAV BAR ── -->
     <div class="rpt-nav no-print">
       <div class="rpt-nav-left">
-        <img src="/4VISO_Logo.png" alt="4VISO" class="rpt-nav-logo" />
-        <span class="rpt-nav-divider"></span>
         <span class="rpt-nav-title">Route Risk Report</span>
       </div>
       <div class="rpt-nav-right">
@@ -1029,7 +1027,7 @@ const printReport = () => window.print()
     padding: 0 0 24px; border-bottom: 3px solid var(--primary); margin-bottom: 28px;
   }
   .pcover-left  { display: flex; align-items: center; gap: 16px; }
-  .pcover-logo  { height: 36px; object-fit: contain; }
+  .pcover-logo  { height: 36px; object-fit: contain; filter: brightness(0); }
   .pcover-titles { display: flex; flex-direction: column; gap: 3px; }
   .pcover-main  { font-size: 20px; font-weight: 800; color: var(--primary); }
   .pcover-sub   { font-size: 11px; color: #64748b; }
