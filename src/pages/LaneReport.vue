@@ -285,6 +285,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { TEMP_BLOCKS, TRANSPORT_TEMP_RISK } from '@/data/tempBlocks'
 import { TRANSPORT_COMPANIES, WAREHOUSES, AIRPORTS } from '@/data/companies'
 import { computeRiskScore } from '@/composables/useRiskScore'
+import { certName, certNames, certStatus, certStatusText, getExpiringCerts } from '@/data/certUtils'
 
 const router = useRouter()
 const route  = useRoute()
@@ -311,7 +312,7 @@ onMounted(() => {
 // ─── Static lookups ───────────────────────────────────────────────
 const ALL_COMPANIES = [...TRANSPORT_COMPANIES, ...WAREHOUSES, ...AIRPORTS]
 const CARRIER_CERTS = new Map()
-ALL_COMPANIES.forEach(c => { if (!CARRIER_CERTS.has(c.name)) CARRIER_CERTS.set(c.name, c.certificates) })
+ALL_COMPANIES.forEach(c => { if (!CARRIER_CERTS.has(c.name)) CARRIER_CERTS.set(c.name, certNames(c.certificates)) })
 
 const transportTypes = [
   { value: 'road',      label: 'Road',      icon: '🚛' },
@@ -382,7 +383,7 @@ const nodeCapTemp = (node) => {
 
   const tc = TRANSPORT_COMPANIES.find(c => c.name === node.company)
   if (tc) {
-    if (tc.certificates.includes('GDP')) return { ok: true, reason: 'GDP-certified carrier' }
+    if (certNames(tc.certificates).includes('GDP')) return { ok: true, reason: 'GDP-certified carrier' }
     return { ok: false, reason: 'Carrier not GDP-certified for temperature control' }
   }
 
@@ -394,9 +395,9 @@ const nodeCapFragile = (node) => {
   if (!node.fragile) return { ok: true, reason: 'Not flagged fragile', na: true }
   const company = ALL_COMPANIES.find(c => c.name === node.company)
   if (!company) return { ok: false, reason: 'Company not in database', na: false }
-  if (company.certificates?.includes('ISO 13485'))
+  if (certNames(company.certificates).includes('ISO 13485'))
     return { ok: true, reason: 'ISO 13485 certified', na: false }
-  if (company.certificates?.includes('GDP'))
+  if (certNames(company.certificates).includes('GDP'))
     return { ok: true, reason: 'GDP covers fragile pharma handling', na: false }
   return { ok: false, reason: 'No certification for fragile handling', na: false }
 }
@@ -508,16 +509,41 @@ const riskCategories = computed(() => {
     issues: carrierIssues,
   })
 
-  // Certification coverage
+  // Certification coverage + expiry
   const certIssues = []
   nodes.forEach(n => {
     const miss = required.filter(c => !(n.certificates || []).includes(c))
     if (miss.length) certIssues.push(`${n.location || 'Node'}: missing ${miss.join(', ')}`)
   })
+  if (required.length) {
+    nodes.forEach(n => {
+      if (!n.company) return
+      const db = ALL_COMPANIES.find(c => c.name === n.company)
+      if (!db) return
+      getExpiringCerts(db.certificates || [])
+        .filter(cert => required.includes(certName(cert)))
+        .forEach(cert => {
+          const txt = certStatusText(cert)
+          if (certStatus(cert) === 'expired')
+            certIssues.push(`${n.company}: ${certName(cert)} expired${txt ? ' (' + txt + ')' : ''}`)
+          else
+            certIssues.push(`${n.company}: ${certName(cert)} expiring${txt ? ' — ' + txt : ' soon'}`)
+        })
+    })
+  }
+  const certExpiryCount = required.length ? nodes.reduce((acc, n) => {
+    if (!n.company) return acc
+    const db = ALL_COMPANIES.find(c => c.name === n.company)
+    return acc + (db ? getExpiringCerts(db.certificates || []).filter(c => required.includes(certName(c))).length : 0)
+  }, 0) : 0
   cats.push({
     key: 'cert', icon: '📋', label: 'Certification Coverage',
     level: certIssues.length > 1 ? 'high' : certIssues.length === 1 ? 'medium' : 'low',
-    summary: required.length === 0 ? 'No certifications required for this route' : certIssues.length ? `${certIssues.length} certification gap${certIssues.length > 1 ? 's' : ''} across the route` : 'Full certificate coverage confirmed',
+    summary: required.length === 0 && certExpiryCount === 0
+      ? 'No certifications required for this route'
+      : certIssues.length
+        ? `${certIssues.length} certification issue${certIssues.length > 1 ? 's' : ''} across the route`
+        : 'Full certificate coverage confirmed',
     issues: certIssues,
   })
 
@@ -547,7 +573,7 @@ const transportSegments = computed(() => {
     const t    = n.transport || 'road'
     const riskEntry = getTempRisk(t)
     const tc = TRANSPORT_COMPANIES.find(c => c.name === n.company)
-    const tempCapable = tc ? tc.certificates.includes('GDP') : null
+    const tempCapable = tc ? certNames(tc.certificates).includes('GDP') : null
     return {
       label: `${from} → ${to}`,
       transportIcon: transportIcon(t),
@@ -585,6 +611,24 @@ const riskResult = computed(() => {
     if (tb && tb !== 'ambient' && n.transport && n.transport !== 'warehouse') {
       const re = TRANSPORT_TEMP_RISK[tb]?.[n.transport]
       if (re && !re.ok) alerts.push({ severity: re.risk, node: loc, message: `${loc}: ${re.reason}` })
+    }
+
+    // Cert expiry checks — only flag certs that are required for this route
+    if (n.company && required.length) {
+      const db = ALL_COMPANIES.find(c => c.name === n.company)
+      if (db) {
+        getExpiringCerts(db.certificates || [])
+          .filter(cert => required.includes(certName(cert)))
+          .forEach(cert => {
+            const st  = certStatus(cert)
+            const txt = certStatusText(cert)
+            const sev = st === 'expired' ? 'critical' : 'warning'
+            const msg = st === 'expired'
+              ? `${n.company}: ${certName(cert)} certification has expired${txt ? ' (' + txt + ')' : ''}.`
+              : `${n.company}: ${certName(cert)} certification expiring soon${txt ? ' — ' + txt : ''}.`
+            alerts.push({ severity: sev, node: loc, message: msg })
+          })
+      }
     }
   })
 

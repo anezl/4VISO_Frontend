@@ -172,7 +172,7 @@
                         <div v-for="s in activeSugs" :key="s.id" class="nc-ac-item"
                           @mousedown.prevent="selectNodeCompany(node.id, s)">
                           <span class="nai-main">{{ s.name }}</span>
-                          <span class="nai-sub">{{ s.certificates?.slice(0,3).join(' · ') }}</span>
+                          <span class="nai-sub">{{ certNames(s.certificates || []).slice(0,3).join(' · ') }}</span>
                         </div>
                       </div>
                     </div>
@@ -210,6 +210,16 @@
                   <div v-if="routeTempData" class="nc-temp"
                     :style="{ background: routeTempData.color + '18', color: routeTempData.color, borderColor: routeTempData.color + '44' }">
                     {{ routeTempData.icon }} {{ routeTempData.label }}
+                  </div>
+                  <div v-if="nodeExpiringCerts(node).some(c => certStatus(c) === 'expired')"
+                    class="nc-cert-expiry nc-cert-expiry-expired"
+                    :title="nodeExpiringCertsTitle(node)">
+                    ✗ Cert expired
+                  </div>
+                  <div v-else-if="nodeExpiringCerts(node).length"
+                    class="nc-cert-expiry nc-cert-expiry-warn"
+                    :title="nodeExpiringCertsTitle(node)">
+                    ⚠ Cert expiring
                   </div>
                 </div>
               </div>
@@ -265,7 +275,7 @@
                       <div v-for="s in connCompanySugs" :key="s.id" class="nc-ac-item"
                         @mousedown.prevent="selectConnCompany(idx + 1, s)">
                         <span class="nai-main">{{ s.name }}</span>
-                        <span class="nai-sub">{{ s.certificates?.slice(0,3).join(' · ') }}</span>
+                        <span class="nai-sub">{{ certNames(s.certificates || []).slice(0,3).join(' · ') }}</span>
                       </div>
                     </div>
                   </div>
@@ -422,6 +432,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/services/api'
 import { searchCompanies, searchLocations, getAllCompanies, TRANSPORT_COMPANIES, WAREHOUSES, AIRPORTS } from '@/data/companies'
 import { computeRiskScore } from '@/composables/useRiskScore'
+import { certNames, certName, certStatus, certStatusText, getExpiringCerts } from '@/data/certUtils'
 import staticLanes from '@/data/lanes.json'
 import { TEMP_BLOCKS, TRANSPORT_TEMP_RISK } from '@/data/tempBlocks'
 import { searchCities } from '@/data/worldCities'
@@ -580,7 +591,7 @@ const selectNodeCompany = (nodeId, s) => {
   if (!node) return
   node.details.company = s.name
   if (s.certificates?.length) {
-    node.certifications = s.certificates.filter(c => requiredCertifications.value.includes(c))
+    node.certifications = certNames(s.certificates).filter(c => requiredCertifications.value.includes(c))
   }
   activeSugs.value = []; focusedNodeId.value = null; focusedField.value = null
   saveLane()
@@ -696,6 +707,23 @@ const nodeCapFragile = (node) => {
   if (!company) return { ok: null, icon: '?', reason: 'Company not in database' }
   if (company.fragileCapable) return { ok: true, icon: '✓', reason: 'Fragile handling certified' }
   return { ok: false, icon: '✗', reason: 'Not certified for fragile handling' }
+}
+
+// Returns expiring/expired cert objects that are required for this route
+const nodeExpiringCerts = (node) => {
+  const required = requiredCertifications.value
+  if (!required.length) return []
+  const companyName = node.details?.company
+  if (!companyName) return []
+  const db = ALL_DB.find(c => c.name === companyName)
+  if (!db) return []
+  return getExpiringCerts(db.certificates || []).filter(c => required.includes(certName(c)))
+}
+
+const nodeExpiringCertsTitle = (node) => {
+  return nodeExpiringCerts(node)
+    .map(c => `${certName(c)}: ${certStatusText(c) || certStatus(c)}`)
+    .join(', ')
 }
 
 // ─── Toolbar modes ────────────────────────────────────────────────
@@ -1304,6 +1332,12 @@ onMounted(async () => {
   font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
   border: 1px solid; letter-spacing: 0.03em; white-space: nowrap; flex-shrink: 0;
 }
+.nc-cert-expiry {
+  font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+  letter-spacing: 0.03em; white-space: nowrap; flex-shrink: 0; cursor: default;
+}
+.nc-cert-expiry-warn    { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.nc-cert-expiry-expired { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
 
 /* ── Connector ── */
 .conn-col {

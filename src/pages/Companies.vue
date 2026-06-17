@@ -53,9 +53,15 @@
           <div class="co-certs" v-if="company.certificates && company.certificates.length">
             <span
               v-for="cert in company.certificates"
-              :key="cert"
+              :key="certName(cert)"
               class="co-cert-chip"
-            >{{ cert }}</span>
+              :class="certChipClass(cert)"
+              :title="certChipTitle(cert)"
+            >
+              {{ certName(cert) }}
+              <span v-if="certStatus(cert) === 'expired'" class="co-cert-status-tag co-cert-status-expired">✗ expired</span>
+              <span v-else-if="certStatus(cert) === 'expiring'" class="co-cert-status-tag co-cert-status-expiring">⚠ {{ certShortExpiry(cert) }}</span>
+            </span>
           </div>
           <div class="co-certs" v-else>
             <span class="co-cert-chip co-cert-none">No certifications</span>
@@ -188,6 +194,7 @@
 import { ref, computed } from 'vue'
 import { TRANSPORT_COMPANIES, WAREHOUSES, AIRPORTS } from '@/data/companies'
 import { getScores, scoreLabel, scoreColor, scoreBg } from '@/data/companyScores'
+import { certName, certStatus, certStatusText, certDaysRemaining } from '@/data/certUtils'
 
 const searchQuery = ref('')
 const typeFilter  = ref('all')
@@ -208,11 +215,36 @@ const displayed = computed(() => {
       c._key?.toLowerCase().includes(q) ||
       (c.countries || []).some(cc => cc.toLowerCase().includes(q)) ||
       (c.country ? c.country.toLowerCase().includes(q) : false) ||
-      (c.certificates || []).some(cert => cert.toLowerCase().includes(q))
+      (c.certificates || []).some(cert => certName(cert).toLowerCase().includes(q))
     )
   }
   return list
 })
+
+const certChipClass = (cert) => {
+  const s = certStatus(cert)
+  if (s === 'expired')  return 'co-cert-expired'
+  if (s === 'expiring') return 'co-cert-expiring'
+  return ''
+}
+
+const certChipTitle = (cert) => {
+  if (typeof cert === 'string') return cert
+  const lines = [`${cert.name}`]
+  if (cert.validFrom) lines.push(`Valid from: ${cert.validFrom}`)
+  if (cert.validTo)   lines.push(`Valid to: ${cert.validTo}`)
+  const txt = certStatusText(cert)
+  if (txt) lines.push(txt)
+  return lines.join('\n')
+}
+
+const certShortExpiry = (cert) => {
+  const days = certDaysRemaining(cert)
+  if (days === null) return ''
+  if (days <= 0)  return 'expired'
+  if (days <= 30) return `${days}d`
+  return `${Math.round(days / 30)}mo`
+}
 
 const typeBadge = (t) => ({ transport: 'Transport', warehouse: 'Warehouse', airport: 'Airport' }[t] || t)
 const typeFilters = [
@@ -451,6 +483,36 @@ const typeFilters = [
   color: #94a3b8;
   border-color: #e2e8f0;
 }
+
+.co-cert-expiring {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.co-cert-expired {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.co-cert-status-tag {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.co-cert-status-expired  { background: rgba(185,28,28,0.12); color: #b91c1c; }
+.co-cert-status-expiring { background: rgba(146,64,14,0.12);  color: #92400e; }
 
 /* ── SCORES SECTION ── */
 .co-scores {

@@ -346,12 +346,13 @@ import lanesData from '@/data/lanes.json'
 import { TRANSPORT_COMPANIES, WAREHOUSES, AIRPORTS, searchEntities } from '@/data/companies'
 import { TRANSPORT_TEMP_RISK } from '@/data/tempBlocks'
 import { computeRiskScore } from '@/composables/useRiskScore'
+import { certNames } from '@/data/certUtils'
 
-// ── Company certificate lookup map ─────────────────────────────
+// ── Company certificate lookup map (stores cert name strings) ──
 const CARRIER_CERTS = new Map()
-TRANSPORT_COMPANIES.forEach(c => CARRIER_CERTS.set(c.name, c.certificates))
-WAREHOUSES.forEach(w  => { if (!CARRIER_CERTS.has(w.company)) CARRIER_CERTS.set(w.company, w.certificates) })
-AIRPORTS.forEach(a   => { if (!CARRIER_CERTS.has(a.company)) CARRIER_CERTS.set(a.company, a.certificates) })
+TRANSPORT_COMPANIES.forEach(c => CARRIER_CERTS.set(c.name, certNames(c.certificates)))
+WAREHOUSES.forEach(w  => { if (!CARRIER_CERTS.has(w.company)) CARRIER_CERTS.set(w.company, certNames(w.certificates)) })
+AIRPORTS.forEach(a   => { if (!CARRIER_CERTS.has(a.company)) CARRIER_CERTS.set(a.company, certNames(a.certificates)) })
 
 const carrierKnown = (companyName) => companyName && CARRIER_CERTS.has(companyName)
 
@@ -504,7 +505,7 @@ const laneCompliance = (lane) => {
   const passed = checks.filter(c => c.ok).length
   const total  = checks.length
   const status = passed === total ? 'COMPLIANT'
-    : passed >= 3 ? 'CONDITIONAL'
+    : passed >= 2 ? 'CONDITIONAL'
     : passed >= 1 ? 'NON-COMPLIANT'
     : 'CRITICAL'
 

@@ -9,7 +9,7 @@
       <div class="header-section">
         <h1>Risk Lane Assessment</h1>
         <p>Analyze and optimize your supply chain routes</p>
-        <p>Project Lab w/ Collin Van der Vorst</p>
+        <!-- <p>Project Lab w/ Collin Van der Vorst</p> -->
       </div>
 
       <div class="search-card">
@@ -66,12 +66,12 @@
               <div class="lane-card-meta">
                 <div class="meta-item">
                   <span class="meta-label">Certificates</span>
-                  <span class="meta-value certs">{{ lane.certificates.join(' · ') }}</span>
+                  <span class="meta-value certs">{{ (lane.certificates || []).join(' · ') }}</span>
                 </div>
                 <div class="meta-row">
                   <div class="meta-item">
                     <span class="meta-label">Nodes</span>
-                    <span class="meta-value">{{ lane.nodes.length }}</span>
+                    <span class="meta-value">{{ (lane.nodes || []).length }}</span>
                   </div>
                   <div class="meta-item">
                     <span class="meta-label">Created</span>
@@ -110,9 +110,15 @@ const findRoutes = () => {
   searchTriggered.value = true
   const o = origin.value.trim().toLowerCase()
   const d = destination.value.trim().toLowerCase()
-  filteredLanes.value = lanes.filter(lane => {
-    const matchOrigin = !o || lane.origin.city.toLowerCase().includes(o)
-    const matchDest   = !d || lane.destination.city.toLowerCase().includes(d)
+
+  let savedLanes = []
+  try { savedLanes = JSON.parse(localStorage.getItem('savedLanes') || '[]') } catch {}
+  const savedIds = new Set(savedLanes.map(l => String(l.id)))
+  const allLanes = [...savedLanes, ...lanes.filter(l => !savedIds.has(String(l.id)))]
+
+  filteredLanes.value = allLanes.filter(lane => {
+    const matchOrigin = !o || (lane.origin?.city || '').toLowerCase().includes(o)
+    const matchDest   = !d || (lane.destination?.city || '').toLowerCase().includes(d)
     return matchOrigin && matchDest
   })
 }
