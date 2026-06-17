@@ -917,8 +917,60 @@ const onPanEnd = () => { isPanning.value = false }
 const overallRiskScore = computed(() => {
   const n = nodes.value.length
   if (n < 2) return 100
-  const scores = []
-  for (let i = 1; i < n; i++) scores.push(connRiskAssessment(i).score)
+
+  const tb       = routeTempBlock.value
+  const required = requiredCertifications.value
+  const scores   = []
+
+  nodes.value.forEach((node, idx) => {
+    // ── Node score (0–100) ──────────────────────────────────────
+    let ns = 100
+
+    if (!node.details.location?.trim())  ns -= 25  // no location
+    if (!node.details.company?.trim()) {
+      ns -= 20                                      // no company at all
+    } else {
+      const inDb = ALL_DB.find(c => c.name === node.details.company)
+      if (!inDb) ns -= 8                            // company not in certified DB
+    }
+
+    if (required.length > 0) {
+      const missing = required.filter(c => !(node.certifications || []).includes(c))
+      ns -= Math.min(missing.length * 12, 30)       // missing required certs, max -30
+    }
+
+    scores.push(Math.max(0, ns))
+
+    // ── Connector score (0–100) for each leg arriving at this node ──
+    if (idx > 0) {
+      let cs = 100
+      const transport  = node.details.transportType?.trim()  || ''
+      const carrierName = node.details.transportCompany?.trim() || ''
+
+      if (!transport)    cs -= 20  // no transport mode chosen
+      if (!carrierName) {
+        cs -= 20                   // no carrier assigned
+      } else {
+        const dbEntry = ALL_DB.find(c => c.name === carrierName)
+        if (!dbEntry) {
+          cs -= 10                 // carrier not in certified database
+        } else {
+          if (tb && tb !== 'ambient') {
+            const re = TRANSPORT_TEMP_RISK[tb]?.[transport]
+            if (re && !re.ok)
+              cs -= re.risk === 'critical' ? 35 : 20   // transport/temp mismatch
+            if (!(dbEntry.tempCapabilities || []).includes(tb))
+              cs -= 25                                  // carrier not temp capable
+          }
+          if (routeFragile.value && !dbEntry.fragileCapable)
+            cs -= 15                                    // fragile not supported
+        }
+      }
+
+      scores.push(Math.max(0, cs))
+    }
+  })
+
   return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
 })
 
