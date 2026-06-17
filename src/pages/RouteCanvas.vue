@@ -68,19 +68,11 @@
             </p>
           </div>
           <div class="toolbar-actions">
-            <button class="btn-tool" @click="addNode">
-              <span>+</span> Add Node
-            </button>
             <button class="btn-tool backup-tool"
               @click="enterBackupPickMode"
               :disabled="intermediaryNodes.length === 0"
               :class="{ active: backupPickMode }">
               <span>⊕</span> {{ backupPickMode ? 'Pick node…' : 'Add Backup' }}
-            </button>
-            <button class="btn-tool remove-tool"
-              :class="{ active: removingMode }"
-              @click="toggleRemoveMode">
-              <span>−</span> {{ removingMode ? 'Cancel' : 'Remove Node' }}
             </button>
             <button class="btn-finish" @click="finishLane" :disabled="isFinishing">
               {{ isFinishing ? 'Saving…' : 'Finish Lane →' }}
@@ -217,6 +209,9 @@
 
               <!-- CONNECTOR (between cards) -->
               <div v-if="idx < nodes.length - 1" class="conn-col">
+                <!-- Insert node button -->
+                <button class="conn-insert-btn" @click.stop="addNode(idx + 1)" title="Insert node here">+</button>
+
                 <div class="conn-line" :class="'c-' + (nodes[idx + 1].details.transportType || 'road')"></div>
 
                 <!-- Collapsed connector header — always visible -->
@@ -654,8 +649,7 @@ const saveBackupDetails = () => {
 }
 
 // ─── Node CRUD ────────────────────────────────────────────────────
-const addNode = () => {
-  const insertIdx = nodes.value.length - 1
+const addNode = (insertIdx = nodes.value.length - 1) => {
   nodes.value.splice(insertIdx, 0, {
     id: nextId++, type: 'intermediary',
     details: { company: '', location: '', facilityType: 'warehouse', transportType: 'road', transportCompany: '' },
@@ -1140,6 +1134,23 @@ onMounted(async () => {
   display: flex; flex-direction: column; align-items: center;
   width: 130px; flex-shrink: 0; position: relative; z-index: 10;
 }
+
+/* Insert node button */
+.conn-insert-btn {
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 2px dashed #94a3b8; background: white; color: #94a3b8;
+  font-size: 14px; font-weight: 700; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; padding: 0; transition: all 0.15s;
+  opacity: 0.45; flex-shrink: 0;
+}
+.conn-col:hover .conn-insert-btn,
+.conn-insert-btn:hover {
+  opacity: 1; border-color: #1F7A5C; color: #1F7A5C;
+  background: #f0fdf4; transform: scale(1.15);
+  border-style: solid;
+}
+
 .conn-line { width: 2px; height: 16px; background: #B8C2CC; border-radius: 2px; flex-shrink: 0; }
 .conn-line.c-road      { background: #D97448; }
 .conn-line.c-air       { background: #D4A83A; }
