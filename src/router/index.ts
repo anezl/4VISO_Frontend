@@ -13,6 +13,7 @@ import Profile from '../pages/Profile.vue'
 import Settings from '../pages/Settings.vue'
 import Notifications from '../pages/Notifications.vue'
 import LaneReport from '../pages/LaneReport.vue'
+import Companies from '../pages/Companies.vue'
 
 const routes = [
   {
@@ -85,6 +86,12 @@ const routes = [
     path: '/report',
     name: 'LaneReport',
     component: LaneReport,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/companies',
+    name: 'Companies',
+    component: Companies,
     meta: { requiresAuth: true },
   },
 ]
