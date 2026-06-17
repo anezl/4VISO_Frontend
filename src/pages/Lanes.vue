@@ -116,10 +116,22 @@
             </div>
             <div class="lane-title-right">
               <span v-for="cert in (lane.certificates || [])" :key="cert" class="cert-tag">{{ cert }}</span>
-              <button class="open-btn" @click="$router.push({ path: '/canvas', query: { laneId: lane.id } })">
-                Edit Route
-                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-              </button>
+
+              <!-- Inline delete confirmation -->
+              <template v-if="confirmingDeleteId === lane.id">
+                <span class="delete-confirm-msg">Delete this lane?</span>
+                <button class="del-confirm-btn" @click="deleteLane(lane.id)">Yes, delete</button>
+                <button class="del-cancel-btn" @click="confirmingDeleteId = null">Cancel</button>
+              </template>
+              <template v-else>
+                <button class="del-btn" @click="confirmingDeleteId = lane.id" title="Delete lane">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
+                <button class="open-btn" @click="$router.push({ path: '/canvas', query: { laneId: lane.id } })">
+                  Edit Route
+                  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </button>
+              </template>
             </div>
           </div>
 
@@ -564,6 +576,22 @@ const laneRisk = (lane) => {
   return { level, label, alerts, counts }
 }
 
+// ── Delete lane ─────────────────────────────────────────────────
+const confirmingDeleteId = ref(null)
+
+const deleteLane = async (id) => {
+  try { await api.delete(`/lanes/${id}`) } catch (_) {}
+
+  // Remove from localStorage
+  try {
+    const saved = JSON.parse(localStorage.getItem('savedLanes') || '[]')
+    localStorage.setItem('savedLanes', JSON.stringify(saved.filter(l => String(l.id) !== String(id))))
+  } catch (_) {}
+
+  allLanes.value = allLanes.value.filter(l => String(l.id) !== String(id))
+  confirmingDeleteId.value = null
+}
+
 // ── Toggle handlers ─────────────────────────────────────────────
 const toggleComplianceStrip = (id) => { openComplianceStrips[id] = !openComplianceStrips[id] }
 const toggleRiskPanel        = (id) => { openRiskPanels[id]       = !openRiskPanels[id] }
@@ -787,6 +815,32 @@ const transportClass = (t) => t || 'road'
   transition: all .13s;
 }
 .open-btn:hover { background: #0f172a; border-color: #0f172a; color: #fff; }
+
+.del-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; color: #94a3b8;
+  cursor: pointer; transition: all .13s; flex-shrink: 0;
+}
+.del-btn:hover { border-color: #fca5a5; background: #fef2f2; color: #dc2626; }
+
+.delete-confirm-msg {
+  font-size: 12px; font-weight: 500; color: #dc2626; white-space: nowrap;
+}
+.del-confirm-btn {
+  height: 28px; padding: 0 11px;
+  background: #dc2626; color: #fff; border: none; border-radius: 6px;
+  font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap;
+  transition: background .13s;
+}
+.del-confirm-btn:hover { background: #b91c1c; }
+.del-cancel-btn {
+  height: 28px; padding: 0 11px;
+  border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; color: #64748b;
+  font-size: 11.5px; font-weight: 500; cursor: pointer; font-family: inherit; white-space: nowrap;
+  transition: all .13s;
+}
+.del-cancel-btn:hover { background: #f8fafc; color: #334155; }
 
 /* ══════════════════════════════════════════════════════════════
    COMPLIANCE STRIP

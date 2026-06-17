@@ -33,9 +33,9 @@
         </div>
 
         <div class="hint-box">
-          <div class="hint-row"><span>+</span><span>Add Node to insert a stop</span></div>
-          <div class="hint-row"><span>✏️</span><span>Click a card to edit it</span></div>
-          <div class="hint-row"><span>↕</span><span>Drag stops to reorder</span></div>
+          <div class="hint-row"><span>+</span><span>Click + between nodes to add a stop</span></div>
+          <div class="hint-row"><span>✏️</span><span>Edit location &amp; company inline</span></div>
+          <div class="hint-row"><span>🚛</span><span>Click connectors to set transport</span></div>
           <div class="hint-row"><span>✓</span><span>Finish Lane to save &amp; review</span></div>
         </div>
       </div>
@@ -90,9 +90,11 @@
           <div class="banner-mid">
             <div class="banner-line"></div>
             <span class="banner-stops">{{ intermediaryNodes.length }} stop{{ intermediaryNodes.length !== 1 ? 's' : '' }}</span>
-            <span v-if="currentLane?.riskLevel" class="risk-badge" :class="'risk-' + currentLane.riskLevel">
-              {{ currentLane.riskLevel }} risk
-            </span>
+            <span class="risk-badge" :class="{
+              'risk-low':    overallRiskLevel === 'ok',
+              'risk-medium': overallRiskLevel === 'warning',
+              'risk-high':   overallRiskLevel === 'critical',
+            }">{{ overallRiskLabel }} RISK</span>
             <div class="banner-line"></div>
             <span class="banner-arrow">→</span>
           </div>
@@ -104,7 +106,12 @@
         </div>
 
         <!-- NODE TRACK -->
-        <div class="track-scroll">
+        <div class="track-scroll"
+          :class="{ 'is-panning': isPanning }"
+          @mousedown="onPanStart"
+          @mousemove="onPanMove"
+          @mouseup="onPanEnd"
+          @mouseleave="onPanEnd">
           <div class="node-track">
             <template v-for="(node, idx) in nodes" :key="node.id">
 
@@ -288,6 +295,82 @@
         </div>
 
         </template><!-- end v-else -->
+      </div>
+    </div>
+
+    <!-- RIGHT SIDEBAR – Route Overview -->
+    <div class="route-sidebar">
+      <div class="rsb-header">
+        <span class="rsb-header-icon">⬡</span>
+        <span class="rsb-header-title">Route Overview</span>
+      </div>
+
+      <div class="rsb-body">
+
+        <!-- Mini Route Map -->
+        <div class="rsb-section">
+          <div class="rsb-section-ttl">Route Map</div>
+          <div class="rsb-mini-route">
+            <template v-for="(node, idx) in nodes" :key="node.id">
+              <div class="rsb-mn" :class="'rsbn-' + node.type">
+                <div class="rsbn-dot"></div>
+                <div class="rsbn-info">
+                  <div class="rsbn-role">{{ nodeRoleLabel(idx) }}</div>
+                  <div class="rsbn-loc">{{ node.details.location || '—' }}</div>
+                  <div v-if="node.details.company" class="rsbn-co">{{ node.details.company }}</div>
+                </div>
+              </div>
+              <div v-if="idx < nodes.length - 1" class="rsb-conn-seg"
+                :class="'rsbc-' + (nodes[idx + 1].details.transportType || 'road')">
+                <div class="rsbc-line"></div>
+                <span class="rsbc-lbl">
+                  {{ transportIcon(nodes[idx + 1].details.transportType || 'road') }}
+                  {{ transportLabel(nodes[idx + 1].details.transportType || 'road') }}
+                </span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Overall Risk Score -->
+        <div class="rsb-section">
+          <div class="rsb-section-ttl">Risk Score</div>
+          <div class="rsb-risk-card" :class="'rsbrisk-' + overallRiskLevel">
+            <div class="rsb-risk-row">
+              <span class="rsb-score-num">{{ overallRiskScore }}</span>
+              <span class="rsb-score-denom">/100</span>
+              <span class="rsb-risk-pill" :class="'rsbpill-' + overallRiskLevel">{{ overallRiskLabel }}</span>
+            </div>
+            <div class="rsb-bar-track">
+              <div class="rsb-bar-fill" :class="'rsbfill-' + overallRiskLevel"
+                :style="{ width: overallRiskScore + '%' }"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Certifications per node -->
+        <div class="rsb-section">
+          <div class="rsb-section-ttl">Certifications</div>
+          <div v-if="requiredCertifications.length === 0" class="rsb-no-cert">
+            No certifications required for this route.
+          </div>
+          <template v-else>
+            <div v-for="(node, idx) in nodes" :key="node.id" class="rsb-cert-row">
+              <div class="rsb-cert-node-lbl">
+                <span class="rsb-cn-dot" :class="'rsbn-' + node.type"></span>
+                {{ nodeRoleLabel(idx) }}<span v-if="node.details.location"> · {{ node.details.location }}</span>
+              </div>
+              <div class="rsb-cert-tags">
+                <span v-for="cert in requiredCertifications" :key="cert"
+                  class="rsb-ctag"
+                  :class="(node.certifications || []).includes(cert) ? 'rsb-cok' : 'rsb-cmiss'">
+                  {{ (node.certifications || []).includes(cert) ? '✓' : '✗' }} {{ cert }}
+                </span>
+              </div>
+            </div>
+          </template>
+        </div>
+
       </div>
     </div>
 
@@ -803,6 +886,52 @@ const finishLane = async () => {
   router.push({ name: 'LaneReport', query: { laneId: route.query.laneId || 'local' } })
 }
 
+// ─── Click-to-pan on canvas ───────────────────────────────────────
+const isPanning   = ref(false)
+let panStartX     = 0
+let panStartY     = 0
+let panScrollLeft = 0
+let panScrollTop  = 0
+
+const onPanStart = (e) => {
+  if (e.button !== 0) return
+  const el = e.currentTarget
+  isPanning.value = true
+  panStartX     = e.clientX
+  panStartY     = e.clientY
+  panScrollLeft = el.scrollLeft
+  panScrollTop  = el.scrollTop
+}
+
+const onPanMove = (e) => {
+  if (!isPanning.value) return
+  e.preventDefault()
+  const el = e.currentTarget
+  el.scrollLeft = panScrollLeft - (e.clientX - panStartX)
+  el.scrollTop  = panScrollTop  - (e.clientY - panStartY)
+}
+
+const onPanEnd = () => { isPanning.value = false }
+
+// ─── Route Overview Sidebar ───────────────────────────────────────
+const overallRiskScore = computed(() => {
+  const n = nodes.value.length
+  if (n < 2) return 100
+  const scores = []
+  for (let i = 1; i < n; i++) scores.push(connRiskAssessment(i).score)
+  return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+})
+
+const overallRiskLevel = computed(() => {
+  const s = overallRiskScore.value
+  return s >= 85 ? 'ok' : s >= 60 ? 'warning' : 'critical'
+})
+
+const overallRiskLabel = computed(() => {
+  const s = overallRiskScore.value
+  return s >= 85 ? 'LOW' : s >= 60 ? 'MEDIUM' : 'HIGH'
+})
+
 // ─── Mount ────────────────────────────────────────────────────────
 onMounted(async () => {
   await nextTick()
@@ -902,7 +1031,12 @@ onMounted(async () => {
 
 <style scoped>
 /* ── Page shell ── */
-.rcanvas-page { display: flex; height: 100%; }
+.rcanvas-page {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow: hidden;
+}
 
 /* ── Left panel ── */
 .step-panel {
@@ -964,10 +1098,10 @@ onMounted(async () => {
 /* ── Main area ── */
 .main-area {
   flex: 1; display: flex; flex-direction: column;
-  padding: 20px; background: var(--bg-color); min-width: 0;
+  padding: 20px; background: var(--bg-color); min-width: 0; overflow: hidden;
 }
 .canvas-card {
-  flex: 1; background: var(--surface-color);
+  flex: 1; min-height: 0; background: var(--surface-color);
   border-radius: 16px; box-shadow: var(--shadow-float);
   border: 1px solid var(--border-color);
   display: flex; flex-direction: column; overflow: hidden;
@@ -1054,12 +1188,20 @@ onMounted(async () => {
 
 /* ── Track ── */
 .track-scroll {
-  flex: 1; overflow-x: auto; overflow-y: auto;
+  flex: 1; min-width: 0; min-height: 0; overflow-x: auto; overflow-y: auto;
   padding: 40px 40px 60px;
   background: #F7F9FB;
   background-image: radial-gradient(circle, rgba(183,194,207,0.55) 1px, transparent 1px);
   background-size: 28px 28px;
+  cursor: grab;
+  user-select: none;
 }
+.track-scroll.is-panning { cursor: grabbing; }
+.track-scroll input,
+.track-scroll button,
+.track-scroll .nc-ac-drop { cursor: auto; }
+.track-scroll.is-panning input,
+.track-scroll.is-panning button { cursor: grabbing; }
 .node-track {
   display: flex; align-items: center;
   width: max-content; min-height: 320px;
@@ -1317,4 +1459,208 @@ onMounted(async () => {
 .btn-cancel:hover { background: #f8fafc; color: var(--text-main); }
 .btn-save { padding: 9px 22px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all var(--transition-fast); box-shadow: 0 4px 10px var(--primary-glow); font-family: inherit; }
 .btn-save:hover { background: var(--primary-light); transform: translateY(-1px); }
+
+/* ── Route Overview Right Sidebar ── */
+.route-sidebar {
+  width: 268px;
+  flex-shrink: 0;
+  background: var(--bg-color);
+  border-left: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rsb-header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 16px;
+  height: 44px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--surface-color);
+}
+.rsb-header-icon {
+  font-size: 13px;
+  color: var(--primary);
+  line-height: 1;
+}
+.rsb-header-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  letter-spacing: 0.01em;
+}
+
+.rsb-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-color);
+}
+
+.rsb-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+.rsb-section-ttl {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+/* Mini route map */
+.rsb-mini-route { display: flex; flex-direction: column; }
+
+.rsb-mn { display: flex; align-items: flex-start; gap: 10px; padding: 3px 0; }
+
+.rsbn-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.rsbn-origin .rsbn-dot, .rsbn-destination .rsbn-dot {
+  background: var(--primary);
+  box-shadow: 0 0 0 3px rgba(31, 111, 84, 0.15);
+}
+.rsbn-intermediary .rsbn-dot {
+  background: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.rsbn-info { flex: 1; min-width: 0; }
+.rsbn-role { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+.rsbn-loc  { font-size: 12.5px; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 1px 0; }
+.rsbn-co   { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.rsb-conn-seg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1px 0 1px 4px;
+  margin: 1px 0;
+}
+.rsbc-line {
+  width: 2px; height: 22px;
+  border-radius: 1px;
+  background: var(--border-color);
+  flex-shrink: 0;
+}
+.rsbc-road      .rsbc-line { background: #D97448; }
+.rsbc-air       .rsbc-line { background: #D4A83A; }
+.rsbc-sea       .rsbc-line { background: #2585A3; }
+.rsbc-rail      .rsbc-line { background: #5488CB; }
+.rsbc-warehouse .rsbc-line { background: #8267CF; }
+
+.rsbc-lbl {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Risk score */
+.rsb-risk-card {
+  border-radius: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+}
+.rsbrisk-ok       { background: #f0fdf4; border-color: #bbf7d0; }
+.rsbrisk-warning  { background: #fffbeb; border-color: #fde68a; }
+.rsbrisk-critical { background: #fef2f2; border-color: #fecaca; }
+
+.rsb-risk-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+.rsb-score-num   { font-size: 32px; font-weight: 800; line-height: 1; color: var(--text-main); }
+.rsb-score-denom { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+.rsbrisk-ok       .rsb-score-num { color: #15803d; }
+.rsbrisk-warning  .rsb-score-num { color: #b45309; }
+.rsbrisk-critical .rsb-score-num { color: #b91c1c; }
+
+.rsb-risk-pill {
+  margin-left: auto;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  padding: 3px 10px; border-radius: 999px;
+}
+.rsbpill-ok       { background: #dcfce7; color: #15803d; }
+.rsbpill-warning  { background: #fef9c3; color: #854d0e; }
+.rsbpill-critical { background: #fee2e2; color: #991b1b; }
+
+.rsb-bar-track {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.07);
+  overflow: hidden;
+}
+.rsb-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+.rsbfill-ok       { background: #22c55e; }
+.rsbfill-warning  { background: #f59e0b; }
+.rsbfill-critical { background: #ef4444; }
+
+/* Certifications */
+.rsb-no-cert {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+  padding: 4px 0;
+}
+.rsb-cert-row { margin-bottom: 12px; }
+.rsb-cert-row:last-child { margin-bottom: 0; }
+
+.rsb-cert-node-lbl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rsb-cn-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.rsb-cn-dot.rsbn-origin, .rsb-cn-dot.rsbn-destination { background: var(--primary); }
+.rsb-cn-dot.rsbn-intermediary { background: #6366f1; }
+
+.rsb-cert-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.rsb-ctag {
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+.rsb-cok   { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.rsb-cmiss { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
 </style>
