@@ -43,3 +43,14 @@ body {
 a {
   text-decoration: none;
 }
+
+/* Print / PDF export: hide the app chrome so only the page content prints */
+@media print {
+  .sidebar,
+  .header {
+    display: none !important;
+  }
+  .layout  { display: block; height: auto; }
+  .main    { display: block; }
+  .content { overflow: visible; }
+}
