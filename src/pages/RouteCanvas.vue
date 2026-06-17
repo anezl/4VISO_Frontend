@@ -472,7 +472,7 @@ const facilityLabel = (node) => {
 }
 
 // ─── Certifications ───────────────────────────────────────────────
-const certificatesList = ['GDP', 'IATA', 'ISO 9001', 'ISO 13485', 'ISO 28000']
+const certificatesList = ['GDP', 'ISO 9001', 'ISO 13485', 'ISO 28000']
 
 const requiredCertifications = computed(() => {
   try {

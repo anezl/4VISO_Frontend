@@ -109,7 +109,7 @@ export const COMPANY_SCORES = new Map([
 
   ['LOT Cargo', {
     temp:   { score: 73, reason: 'Temperature excursion rate of 2.7% across 900 shipments; cold-chain capability restricted to ambient transit, no validated pharma zone at Warsaw Chopin.' },
-    damage: { score: 76, reason: 'Damage rate of 2.4% across 1,100 consignments; IATA certification covers basic handling but fragile SOP not formally audited.' },
+    damage: { score: 76, reason: 'Damage rate of 2.4% across 1,100 consignments; basic handling protocols are in place but fragile SOP not formally audited.' },
     time:   { score: 79, reason: '79% on-time departure rate; average 2.0 h delay on the 21% late shipments, driven by Warsaw slot congestion.' },
   }],
 
@@ -169,12 +169,12 @@ export const COMPANY_SCORES = new Map([
 
   ['PharmUK Ltd', {
     temp:   { score: 89, reason: 'Temperature excursion rate of 1.1% across 1,900 GDP-certified cold-chain shipments from UK manufacturing and distribution sites.' },
-    damage: { score: 88, reason: 'Damage rate of 1.2% across 2,200 consignments; ISO 13485 and IATA certification underpin robust fragile and pharma packaging standards.' },
+    damage: { score: 88, reason: 'Damage rate of 1.2% across 2,200 consignments; ISO 13485 certification underpins robust fragile and pharma packaging standards.' },
     time:   { score: 87, reason: '87% on-time dispatch rate; average 1.1 h delay on late shipments, commonly linked to pre-export documentation review.' },
   }],
 
   ['BioFrance', {
-    temp:   { score: 86, reason: 'Temperature deviation rate of 1.4% across 1,600 cold-chain biological shipments; GDP and IATA certification covers both road and air export lanes.' },
+    temp:   { score: 86, reason: 'Temperature deviation rate of 1.4% across 1,600 cold-chain biological shipments; GDP certification covers both road and air export lanes.' },
     damage: { score: 85, reason: 'Damage rate of 1.5% across 1,900 consignments; ISO 9001 quality management system governs dispatch and packaging for fragile biologics.' },
     time:   { score: 84, reason: '84% on-time dispatch rate from French distribution centre; average 1.4 h delay on the 16% late shipments.' },
   }],
@@ -224,7 +224,7 @@ export const COMPANY_SCORES = new Map([
   }],
 
   ['Kuehne+Nagel Frankfurt', {
-    temp:   { score: 90, reason: 'Temperature excursion rate of 1.0% across 3,600 GDP-validated cold storage cycles; IATA-certified receiving zone for air-freight pre-conditioning.' },
+    temp:   { score: 90, reason: 'Temperature excursion rate of 1.0% across 3,600 GDP-validated cold storage cycles; dedicated receiving zone for air-freight pre-conditioning.' },
     damage: { score: 88, reason: 'Damage rate of 1.2% across 4,200 product lines; fragile-handling protocols aligned to ISO 9001 quality procedures.' },
     time:   { score: 92, reason: '92% SLA adherence for outbound dispatch; average 0.6 h delay on the 8% late orders.' },
   }],
@@ -291,7 +291,7 @@ export const COMPANY_SCORES = new Map([
 
   ['Ceva Logistics Milan', {
     temp:   { score: 79, reason: 'Temperature excursion rate of 2.1% across 1,400 cold storage cycles at Milan facility; GDP and ISO 9001 certified but limited to single cold zone.' },
-    damage: { score: 78, reason: 'Damage rate of 2.2% across 1,700 product lines; IATA-certified for air-freight consolidation but fragile-handling not formally accredited.' },
+    damage: { score: 78, reason: 'Damage rate of 2.2% across 1,700 product lines; GDP-certified for air-freight consolidation but fragile-handling not formally accredited.' },
     time:   { score: 83, reason: '83% SLA adherence; average 1.5 h delay on the 17% late orders from Milan distribution hub.' },
   }],
 
@@ -314,8 +314,8 @@ export const COMPANY_SCORES = new Map([
   }],
 
   ['DSV Copenhagen Pharma', {
-    temp:   { score: 83, reason: 'Temperature excursion rate of 1.7% across 1,800 GDP and IATA-validated cold and frozen storage cycles at Copenhagen facility.' },
-    damage: { score: 84, reason: 'Damage rate of 1.6% across 2,100 product lines; IATA certification supports air-freight pre-conditioning for perishable pharma.' },
+    temp:   { score: 83, reason: 'Temperature excursion rate of 1.7% across 1,800 GDP-validated cold and frozen storage cycles at Copenhagen facility.' },
+    damage: { score: 84, reason: 'Damage rate of 1.6% across 2,100 product lines; GDP certification supports air-freight pre-conditioning for perishable pharma.' },
     time:   { score: 88, reason: '88% SLA adherence; average 1.0 h delay on the 12% late orders, with good airside connectivity at CPH.' },
   }],
 
@@ -326,7 +326,7 @@ export const COMPANY_SCORES = new Map([
   }],
 
   ['Marken London Hub', {
-    temp:   { score: 97, reason: 'Temperature deviation of ≤0.1°C across 4,400 GDP, IATA and ISO 13485-validated cold, frozen and ambient storage cycles at LHR proximity hub.' },
+    temp:   { score: 97, reason: 'Temperature deviation of ≤0.1°C across 4,400 GDP and ISO 13485-validated cold, frozen and ambient storage cycles at LHR proximity hub.' },
     damage: { score: 95, reason: 'Damage rate of 0.5% across 5,100 product lines; white-glove pharmaceutical handling with dedicated clinical-trial packaging suite.' },
     time:   { score: 89, reason: '89% SLA adherence; average 0.8 h delay on the 11% late orders, primarily driven by Heathrow customs inspection queues.' },
   }],
@@ -407,7 +407,7 @@ export const COMPANY_SCORES = new Map([
 
   ['Warsaw Chopin', {
     temp:   { score: 74, reason: 'Temperature excursion rate of 2.6% across 1,100 shipments through Warsaw Chopin; no validated GDP cold-chain zone in cargo terminal.' },
-    damage: { score: 76, reason: 'Damage rate of 2.4% across 1,400 consignments; basic IATA handling only, no dedicated fragile or pharmaceutical ramp zone.' },
+    damage: { score: 76, reason: 'Damage rate of 2.4% across 1,400 consignments; basic handling procedures only, no dedicated fragile or pharmaceutical ramp zone.' },
     time:   { score: 81, reason: '81% on-time departure rate; average 1.7 h delay on the 19% late shipments, driven by Warsaw slot congestion and customs processing times.' },
   }],
 
