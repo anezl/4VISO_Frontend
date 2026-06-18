@@ -29,12 +29,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { getAuthUser } from '@/services/api'
 
 const router = useRouter()
-const currentUser = computed(() => getAuthUser())
+const route = useRoute()
+const currentUser = ref(getAuthUser())
+
+watch(route, () => {
+  currentUser.value = getAuthUser()
+})
 </script>
 
 <style scoped>
