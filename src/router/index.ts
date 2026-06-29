@@ -101,8 +101,7 @@ const router = createRouter({
   routes,
 })
 
-//REMOVE BEFORE SHIPPING -- #Pascal
-const BYPASS_AUTH = true
+const BYPASS_AUTH = import.meta.env.DEV
 
 
 // null = not yet checked, true/false = result of /auth/me

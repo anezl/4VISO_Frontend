@@ -202,7 +202,7 @@
                   <div class="nc-certs">
                     <span v-if="requiredCertifications.length === 0" class="nc-no-certs">No cert req.</span>
                     <span v-for="cert in requiredCertifications" :key="cert" class="nc-cert"
-                      :class="(node.certifications || []).includes(cert) ? 'nc-cert-ok' : 'nc-cert-miss'">
+                      :class="(node.certificates || []).includes(cert) ? 'nc-cert-ok' : 'nc-cert-miss'">
                       {{ cert }}
                     </span>
                   </div>
@@ -373,8 +373,8 @@
               <div class="rsb-cert-tags">
                 <span v-for="cert in requiredCertifications" :key="cert"
                   class="rsb-ctag"
-                  :class="(node.certifications || []).includes(cert) ? 'rsb-cok' : 'rsb-cmiss'">
-                  {{ (node.certifications || []).includes(cert) ? '✓' : '✗' }} {{ cert }}
+                  :class="(node.certificates || []).includes(cert) ? 'rsb-cok' : 'rsb-cmiss'">
+                  {{ (node.certificates || []).includes(cert) ? '✓' : '✗' }} {{ cert }}
                 </span>
               </div>
             </div>
@@ -415,6 +415,7 @@
               <input v-model="editingBackupData.company" class="modern-input" placeholder="e.g. DHL, FedEx…" />
             </div>
           </div>
+          <p v-if="backupError" class="modal-error">{{ backupError }}</p>
           <div class="modal-actions">
             <button class="btn-cancel" @click="closeBackupModal">Cancel</button>
             <button class="btn-save" @click="saveBackupDetails">Save Details</button>
@@ -443,8 +444,8 @@ const route  = useRoute()
 // ─── Nodes ────────────────────────────────────────────────────────
 let nextId = 100
 const nodes = ref([
-  { id: 1, type: 'origin',      details: { company: '', location: '', facilityType: 'warehouse', transportType: '', transportCompany: '' }, certifications: [], backups: [], validationStatus: 'pending' },
-  { id: 2, type: 'destination', details: { company: '', location: '', facilityType: 'warehouse', transportType: '', transportCompany: '' }, certifications: [], backups: [], validationStatus: 'pending' },
+  { id: 1, type: 'origin',      details: { company: '', location: '', facilityType: 'warehouse', transportType: '', transportCompany: '' }, certificates: [], backups: [], validationStatus: 'pending' },
+  { id: 2, type: 'destination', details: { company: '', location: '', facilityType: 'warehouse', transportType: '', transportCompany: '' }, certificates: [], backups: [], validationStatus: 'pending' },
 ])
 
 const originNode        = computed(() => nodes.value.find(n => n.type === 'origin'))
@@ -591,7 +592,7 @@ const selectNodeCompany = (nodeId, s) => {
   if (!node) return
   node.details.company = s.name
   if (s.certificates?.length) {
-    node.certifications = certNames(s.certificates).filter(c => requiredCertifications.value.includes(c))
+    node.certificates = certNames(s.certificates).filter(c => requiredCertifications.value.includes(c))
   }
   activeSugs.value = []; focusedNodeId.value = null; focusedField.value = null
   saveLane()
@@ -743,6 +744,7 @@ const handleCardClick = (idx) => {
 // ─── Backup modal ─────────────────────────────────────────────────
 const editingBackupRef  = reactive({ nodeIdx: null, bkIdx: null })
 const editingBackupData = ref(null)
+const backupError       = ref('')
 
 const openBackupModal = (ni, bi) => {
   editingBackupRef.nodeIdx = ni
@@ -753,8 +755,14 @@ const closeBackupModal = () => {
   editingBackupRef.nodeIdx = null
   editingBackupRef.bkIdx   = null
   editingBackupData.value  = null
+  backupError.value        = ''
 }
 const saveBackupDetails = () => {
+  if (!editingBackupData.value?.location?.trim() || !editingBackupData.value?.company?.trim()) {
+    backupError.value = 'Location and Company are required.'
+    return
+  }
+  backupError.value = ''
   if (editingBackupRef.nodeIdx !== null && editingBackupData.value)
     nodes.value[editingBackupRef.nodeIdx].backups[editingBackupRef.bkIdx] = { ...editingBackupData.value }
   closeBackupModal()
@@ -766,7 +774,7 @@ const addNode = (insertIdx = nodes.value.length - 1) => {
   nodes.value.splice(insertIdx, 0, {
     id: nextId++, type: 'intermediary',
     details: { company: '', location: '', facilityType: 'warehouse', transportType: 'road', transportCompany: '' },
-    certifications: [], backups: [], validationStatus: 'pending',
+    certificates: [], backups: [], validationStatus: 'pending',
   })
   saveLane()
 }
@@ -843,7 +851,7 @@ const buildPayload = () => ({
     transport:       n.details.transportType,
     transportCompany: n.details.transportCompany,
     type:            n.details.facilityType,
-    certificates:    n.certifications || [],
+    certificates:    n.certificates || [],
     backups: (n.backups || []).map(b => ({
       location:      b.location      || '',
       company:       b.company       || '',
@@ -882,7 +890,7 @@ const saveToLocalStorage = () => {
         transport:        n.details.transportType || 'road',
         transportCompany: n.details.transportCompany || '',
         type:             n.details.facilityType  || 'warehouse',
-        certificates:     n.certifications        || [],
+        certificates:     n.certificates        || [],
         backups:          n.backups               || [],
         validationStatus: n.validationStatus      || 'pending',
       })),
@@ -948,7 +956,7 @@ const overallRisk = computed(() => {
   const normalized = nodes.value.map(node => ({
     company:      node.details?.company?.trim() || '',
     transport:    node.details?.transportType   || '',
-    certificates: node.certifications           || [],
+    certificates: node.certificates           || [],
   }))
   return computeRiskScore(normalized, requiredCertifications.value, routeTempBlock.value)
 })
@@ -980,7 +988,7 @@ onMounted(async () => {
               facilityType:     n.type             || 'warehouse',
               transportCompany: n.transportCompany || '',
             },
-            certifications:  n.certificates || [],
+            certificates:    n.certificates || [],
             backups: (n.backups || []).map(b => ({
               location:      b.location      || '',
               company:       b.company       || '',
@@ -1020,7 +1028,7 @@ onMounted(async () => {
                 facilityType:     n.type             || 'warehouse',
                 transportCompany: n.transportCompany || '',
               },
-              certifications:  n.certificates || [],
+              certificates:    n.certificates || [],
               backups: (n.backups || []).map(b => ({
                 location:      b.location      || '',
                 company:       b.company       || '',
@@ -1484,6 +1492,7 @@ onMounted(async () => {
 .bk-remove { background: none; border: none; color: #ef4444; font-size: 16px; cursor: pointer; padding: 0 4px; border-radius: 4px; flex-shrink: 0; }
 .bk-remove:hover { background: #fef2f2; }
 
+.modal-error { margin: 0 22px 2px; font-size: 12px; color: #dc2626; font-weight: 500; }
 .modal-actions { padding: 13px 22px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
 .btn-cancel { padding: 9px 18px; background: white; border: 1.5px solid var(--border-color); color: var(--text-muted); border-radius: 8px; font-weight: 500; font-size: 13px; cursor: pointer; transition: all var(--transition-fast); font-family: inherit; }
 .btn-cancel:hover { background: #f8fafc; color: var(--text-main); }

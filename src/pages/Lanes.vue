@@ -354,6 +354,12 @@ TRANSPORT_COMPANIES.forEach(c => CARRIER_CERTS.set(c.name, certNames(c.certifica
 WAREHOUSES.forEach(w  => { if (!CARRIER_CERTS.has(w.company)) CARRIER_CERTS.set(w.company, certNames(w.certificates)) })
 AIRPORTS.forEach(a   => { if (!CARRIER_CERTS.has(a.company)) CARRIER_CERTS.set(a.company, certNames(a.certificates)) })
 
+// ── Company fragile-handling capability map ──
+const CARRIER_FRAGILE = new Map()
+TRANSPORT_COMPANIES.forEach(c => CARRIER_FRAGILE.set(c.name, c.fragileCapable ?? false))
+WAREHOUSES.forEach(w  => { if (!CARRIER_FRAGILE.has(w.company)) CARRIER_FRAGILE.set(w.company, w.fragileCapable ?? false) })
+AIRPORTS.forEach(a   => { if (!CARRIER_FRAGILE.has(a.company)) CARRIER_FRAGILE.set(a.company, a.fragileCapable ?? false) })
+
 const carrierKnown = (companyName) => companyName && CARRIER_CERTS.has(companyName)
 
 // ── State ───────────────────────────────────────────────────────
@@ -486,6 +492,18 @@ const laneCompliance = (lane) => {
   }
   const hasTemp = !!tempBlock
 
+  // 3. Fragile handling — if cargo is fragile, every node company must be fragileCapable
+  const fragileFails = []
+  const isFragile = lane.fragile === true
+  if (isFragile) {
+    nodes.forEach(n => {
+      if (!n.company) return
+      const capable = CARRIER_FRAGILE.get(n.company)
+      if (capable === false) fragileFails.push(`${n.company}: not rated for fragile handling`)
+      else if (capable === undefined) fragileFails.push(`${n.company}: fragile capability unknown`)
+    })
+  }
+
   // 4. Carrier compliance — company in DB and holds required certs
   const carrierFails = []
   nodes.forEach(n => {
@@ -499,6 +517,7 @@ const laneCompliance = (lane) => {
   const checks = [
     { key: 'certCoverage', label: 'Certificate Coverage', ok: certFails.length === 0,    fails: certFails,    skip: false },
     { key: 'tempChain',    label: 'Temperature Chain',    ok: tempFails.length === 0,    fails: tempFails,    skip: !hasTemp },
+    { key: 'fragile',      label: 'Fragile Handling',     ok: fragileFails.length === 0, fails: fragileFails, skip: !isFragile },
     { key: 'carrier',      label: 'Carrier Compliance',   ok: carrierFails.length === 0, fails: carrierFails, skip: false },
   ]
 
